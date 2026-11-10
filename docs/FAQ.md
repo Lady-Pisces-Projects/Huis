@@ -290,3 +290,6 @@ Not yet. Record payments you receive (check, card, transfer…) against the invo
 ### Can timekeepers see or change billing rates?
 They see only their own rate and can't change it, or the rate on their time. Billing staff (owners, managing partners, administrators and billing administrators) set rates.
 
+### Can Huis help me go through bank statements?
+Yes. **Financial analysis** on a Matter reads the bank statements, ledgers and spreadsheet exports filed in it: every transaction, totals by month, and what may be worth a look (balances that don't add up, possible duplicates, round or unusually large amounts, cash, transfers, gaps in dates), each with the rule that raised it and the exact line it came from. It's fixed rules, not AI, and Huis decides nothing: check every figure against the document. Clients never see it.
+
