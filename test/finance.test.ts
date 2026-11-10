@@ -75,7 +75,7 @@ describe("reading transactions (fixed rules)", () => {
 
   it("doesn't treat ordinary text as financial, and refuses impossible dates", () => {
     expect(analyzeText("We met on 03/15/2026 and paid 12.00 for parking.\nShe called 03/16/2026 about the 40.00 fee.").financial).toBe(false);
-    const a = analyzeText("02/30/2026 Bad day 10.00\n13/01/2026 Bad month 10.00\n02/28/2026 Good 10.00");
+    const a = analyzeText("02/30/2026 Bad day 10.00\n00/12/2026 Bad month 10.00\n02/28/2026 Good 10.00");
     expect(a.transactions.map((t) => t.date)).toEqual(["2026-02-28"]);
     expect(analyzeText("03/02 Deposit 10.00\n03/03 Deposit 10.00\n03/04 Deposit 10.00").skipped).toBe(3); // no year anywhere
   });

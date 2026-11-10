@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { FirmSession } from "../db/tenant";
 import { NotFoundError, PermissionDeniedError } from "../errors";
-import { analyzeText, type Analysis, type FlagRule, MIN_TRANSACTIONS } from "../finance/analyze";
+import { analyzeText, type Analysis, type FlagRule, MAX_TEXT, MIN_TRANSACTIONS } from "../finance/analyze";
 import { INTERNAL_ROLES } from "../security/permissions";
 import { recordAudit } from "./audit";
 import { getEvidence, getEvidenceText } from "./evidence";
@@ -39,7 +39,8 @@ export interface MatterFinancials {
   /** Documents read (with text) and whether there were more than the limit. */
   read: number;
   more: boolean;
-  totals: { moneyIn: number; moneyOut: number; count: number; first: string | null; last: string | null };
+  /** exact: false when the sums are too large to add up exactly (only on absurd input). */
+  totals: { moneyIn: number; moneyOut: number; count: number; first: string | null; last: string | null; exact: boolean };
   months: { month: string; moneyIn: number; moneyOut: number; count: number }[];
   /** The same transaction (date, amount, description) in two documents: overlapping statements, or a copy. */
   overlaps: { date: string; amount: number; description: string; documents: { evidenceId: string; filename: string; line: number }[] }[];
@@ -50,16 +51,20 @@ export async function matterFinancials(s: FirmSession, matterId: string): Promis
   staff(s);
   await getMatter(s, matterId);
   // Row-level security limits this to evidence the reader can see; clean items only.
+  // Only as much text as the parser reads (security review 26, R26-11), and whether there are more documents
+  // from a separate check rather than fetching an extra one.
   const { rows } = await s.client.query<{ id: string; original_filename: string; content: string }>(
-    `SELECT i.id, i.original_filename, t.content FROM huis.evidence_items i JOIN huis.evidence_text t ON t.evidence_id = i.id
+    `SELECT i.id, i.original_filename, left(t.content, $3) AS content FROM huis.evidence_items i JOIN huis.evidence_text t ON t.evidence_id = i.id
       WHERE i.matter_id = $1 AND i.status = 'clean' AND t.char_count > 0
-      ORDER BY i.uploaded_at DESC, i.id LIMIT $2`, [matterId, MAX_DOCUMENTS + 1]);
-  const more = rows.length > MAX_DOCUMENTS;
+      ORDER BY i.uploaded_at DESC, i.id LIMIT $2`, [matterId, MAX_DOCUMENTS, MAX_TEXT]);
+  const more = rows.length === MAX_DOCUMENTS && ((await s.client.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM huis.evidence_items i JOIN huis.evidence_text t ON t.evidence_id = i.id
+      WHERE i.matter_id = $1 AND i.status = 'clean' AND t.char_count > 0`, [matterId])).rows[0]?.n ?? 0) > MAX_DOCUMENTS;
   const documents: FinancialDocument[] = [];
   const months = new Map<string, { month: string; moneyIn: number; moneyOut: number; count: number }>();
   const byKey = new Map<string, MatterFinancials["overlaps"][number]>();
   const totals = { moneyIn: 0, moneyOut: 0, count: 0, first: null as string | null, last: null as string | null };
-  for (const r of rows.slice(0, MAX_DOCUMENTS)) {
+  for (const r of rows) {
     const a = analyzeText(r.content);
     if (!a.financial) continue;
     const flags: FinancialDocument["flags"] = {};
@@ -85,7 +90,7 @@ export async function matterFinancials(s: FirmSession, matterId: string): Promis
   }
   await recordAudit(s, "matter.financial_viewed", { targetType: "matter", targetId: matterId, matterId, metadata: { documents: documents.length } });
   return {
-    documents, read: Math.min(rows.length, MAX_DOCUMENTS), more, totals,
+    documents, read: rows.length, more, totals: { ...totals, exact: Number.isSafeInteger(totals.moneyIn) && Number.isSafeInteger(totals.moneyOut) },
     months: [...months.values()].sort((a, b) => (a.month < b.month ? -1 : 1)),
     overlaps: [...byKey.values()].filter((o) => o.documents.length > 1).slice(0, 200),
   };
@@ -99,11 +104,15 @@ export interface DocumentFinancials extends Analysis {
   noText: boolean;
 }
 
-/** One document's transactions, totals and flags (opening it, as in the viewer). */
-export async function documentFinancials(s: FirmSession, evidenceId: string): Promise<DocumentFinancials> {
+/**
+ * One document's transactions, totals and flags (opening it, as in the viewer). Only a clean item (R26-9), and
+ * only in the Matter it's asked for, checked before the text is read so no view is recorded otherwise (R26-10).
+ */
+export async function documentFinancials(s: FirmSession, evidenceId: string, matterId?: string): Promise<DocumentFinancials> {
   staff(s);
   if (!uuid.safeParse(evidenceId).success) throw new NotFoundError("Evidence");
   const item = await getEvidence(s, evidenceId);
+  if (item.status !== "clean" || (matterId !== undefined && item.matterId !== matterId)) throw new NotFoundError("Evidence");
   const text = await getEvidenceText(s, evidenceId);
   const a = analyzeText(text?.content ?? "");
   return { ...a, evidenceId, matterId: item.matterId, filename: item.originalFilename, noText: !text };

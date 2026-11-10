@@ -54,6 +54,7 @@ export default async function FinancialPage({ params }: { params: Promise<{ id: 
             <div className="card"><div className="stat">{money(f.totals.moneyIn)}</div><div className="stat-label">Money in</div></div>
             <div className="card"><div className="stat">{money(f.totals.moneyOut)}</div><div className="stat-label">Money out</div></div>
           </div>
+          {!f.totals.exact ? <div className="flash error">These totals are too large to add up exactly; check the documents themselves.</div> : null}
           <div className="card">
             <h2>Documents</h2>
             <table>

@@ -19,8 +19,7 @@ export default async function DocumentFinancialPage({ params }: { params: Promis
   const a = await withSession(async (s) => {
     if (!INTERNAL_ROLES.has(s.actor.role)) return null;
     try {
-      const d = await documentFinancials(s, evidenceId);
-      return d.matterId === id ? d : null;
+      return await documentFinancials(s, evidenceId, id);
     } catch (e) { if (e instanceof NotFoundError) return null; throw e; }
   });
   if (!a) notFound();
@@ -33,6 +32,7 @@ export default async function DocumentFinancialPage({ params }: { params: Promis
       <h1>{a.filename}</h1>
       <p className="notice"><span className="badge privileged">{WORK_PRODUCT_LABEL}</span></p>
       {a.noText ? <div className="card"><p>Huis hasn&apos;t read this document&apos;s text yet (it may still be processing, or be a scan without text).</p></div> : null}
+      {a.unreadable ? <div className="flash error">{a.unreadable}</div> : null}
       {!a.noText && !a.financial ? (
         <div className="card"><p>Huis didn&apos;t find enough transactions in this document to treat it as financial ({a.totals.count} found).</p></div>
       ) : null}
@@ -68,7 +68,7 @@ export default async function DocumentFinancialPage({ params }: { params: Promis
                 <li><strong>Cash</strong> and <strong>transfers</strong>: the description reads as an ATM or cash withdrawal, or a wire, transfer, Zelle, Venmo, PayPal or Cash App.</li>
                 <li><strong>Gap in dates</strong>: more than {RULES.gapDays} days with no transactions.</li>
               </ul>
-              <p className="notice">Amounts need cents (e.g. 1,250.00) to be read. Money out is shown negative; where a statement doesn&apos;t sign amounts, the running balance decides.</p>
+              <p className="notice">Amounts need cents (e.g. 1,250.00) to be read; US-style numbers only. Money out is shown negative: as written (minus, parentheses, DR), under a Withdrawals or Debits heading, or as the running balance shows. Where none of those says, an amount counts as money in, so check unsigned statements against the document.</p>
             </details>
           </div>
 
