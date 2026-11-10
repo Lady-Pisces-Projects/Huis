@@ -26,13 +26,28 @@ export interface SubscriptionChange {
   note?: string;
 }
 
-function parseDate(v: string, flag: string): Date | null {
+/** Minutes Utah (America/Denver) is behind UTC at this moment: 420 in winter, 360 in summer. */
+function denverOffsetMinutes(at: Date): number {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Denver", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(at).map((p) => [p.type, p.value]));
+  const local = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
+  return Math.round((at.getTime() - local) / 60_000);
+}
+
+/** The end of that day in Utah, where Huis is based (security review 24, R24-6: real dates, summer time). */
+export function parseDate(v: string, flag: string): Date | null {
   if (v === "none") return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new Error(`${flag}: use YYYY-MM-DD or "none"`);
-  // The end of that day in Utah, where Huis is based (decision #7 time zone default).
-  const d = new Date(`${v}T23:59:59-07:00`);
-  if (Number.isNaN(d.getTime())) throw new Error(`${flag}: not a date`);
-  return d;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) throw new Error(`${flag}: use YYYY-MM-DD or "none"`);
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const asUtc = new Date(Date.UTC(y, mo - 1, d, 23, 59, 59));
+  // 2026-02-31 would roll over to March: refuse it.
+  if (asUtc.getUTCFullYear() !== y || asUtc.getUTCMonth() !== mo - 1 || asUtc.getUTCDate() !== d) throw new Error(`${flag}: ${v} is not a real date`);
+  // 23:59:59 Utah time that day = 23:59:59 UTC plus Utah's offset then (checked again, in case it changed that day).
+  let at = new Date(asUtc.getTime() + denverOffsetMinutes(asUtc) * 60_000);
+  at = new Date(asUtc.getTime() + denverOffsetMinutes(at) * 60_000);
+  return at;
 }
 
 export function parseArgs(argv: string[]): { firm: string; show: boolean; change: SubscriptionChange } {

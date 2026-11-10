@@ -402,7 +402,21 @@ Also fixed while reviewing: overlapping passages could produce a second, cut-sho
 | Note | Info | A few sign-in calls still used plain requests or read answers whole; API answers that trickle in had no overall deadline | Sign-in calls use the time limits and size caps; API answers (not file downloads) also have an overall deadline (5 minutes by default) |
 | Note | Info | A worker started before the database update would have refused every import | A missing chosen version is treated as "not recorded", never as "changed" |
 
+## Twenty-fourth review — Phase 10 part 1 (subscriptions, the trial, seats and usage)
+
+**Result:** nothing High. The reviewer found no way to take more seats than the firm has (including two people added at once, turning a license back on, or other license paths), no way for one firm to read another's account, and reading, export, Matter Brain indexing and court reminders all keep working when new work is paused. The reviewer confirmed 4 Medium and 3 Low problems. **All fixed**, in `db/migrations/0029_review24.sql` and the app and worker, with regression tests in `test/security-review-24.test.ts` (8 tests; the first 7 fail against the code as reviewed).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R24-1 | Medium | The trial's storage limit counted only what was uploaded: an archive under 2 GB could unpack to many times that | Unpacked files count too; unpacking keeps what fits and says the trial's storage limit was reached |
+| R24-2 | Medium | Clients and other outside users were told the firm's billing standing ("payment is overdue") | Outside users get a neutral "adding new documents is paused, contact your law firm"; the firm-wide notice is for firm staff only |
+| R24-3 | Medium | A suspended firm couldn't sign in at all, though Huis promises it can still read and export | Suspended firms sign in with new work paused; "disabled" is still a full lock-out |
+| R24-4 | Medium | A working copy asked for before the trial ended failed (five tries) once it had; queued mail filings and imports also retried pointlessly | Copies of evidence already held finish (their storage still counts); anything the subscription refuses fails at once with its reason instead of retrying |
+| R24-5 | Low | The subscription summary let a caller with no role through (not reachable from the app) | Fails closed |
+| R24-6 | Low | The operator command accepted impossible dates (31 February became 3 March) and was an hour off in summer | Impossible dates refused; the end of the day in Utah, summer time included |
+| R24-7 | Low | The AI-question limit was checked only after the AI work was done | Checked first; the database checks again when the question is saved |
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — Microsoft sign-in doesn't yet require proof of MFA. Plan: require the firm's Microsoft MFA (Conditional Access) or a Huis passkey. Part of the end-of-build Azure/hosting step.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.
-3. **License limits** — admins can add licenses freely until billing (Phase 10) enforces seat counts.
+3. ~~**License limits**~~ — seat counts are enforced by the database since Phase 10 part 1 (review 24).

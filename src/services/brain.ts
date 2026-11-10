@@ -199,6 +199,8 @@ export async function askMatter(s: FirmSession, matterId: string, question: unkn
   staffOnly(s, "use the Matter Brain");
   const q = questionInput.parse(question);
   await getMatter(s, matterId);
+  // Subscription first (security review 24, R24-7): no AI work for a question the firm can't ask.
+  await s.client.query("SELECT huis.my_ai_question_check()");
   const provider = providerFor(await getAiProviderSetting(s));
   const started = Date.now();
   const found = await findPassages(s, provider, matterId, q, PASSAGES, PER_SOURCE);

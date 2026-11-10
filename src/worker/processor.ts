@@ -19,6 +19,8 @@ const MAX_ATTEMPTS = 5;
 export const LEASE_RENEW_MS = 10 * 60_000;
 /** Database errors that mean "a safety limit was reached" (anything else is a real failure). */
 const LIMIT_ERRORS = /quota|nested too deeply|too many items/;
+/** The firm's subscription refused it (Phase 10; SQLSTATE HU402): trying again won't help. */
+export const isSubscriptionLimit = (err: unknown) => (err as { code?: string } | null)?.code === "HU402";
 
 interface ClaimedJob {
   job_id: string;
@@ -89,7 +91,7 @@ export class EvidenceProcessor {
       else await this.scan(job);
     } catch (err) {
       const message = err instanceof Error ? err.message : "processing error";
-      await this.pool.query("SELECT huis.worker_fail($1, $2, $3, $4)", [job.job_id, job.lock_token, message, job.attempts >= MAX_ATTEMPTS]);
+      await this.pool.query("SELECT huis.worker_fail($1, $2, $3, $4)", [job.job_id, job.lock_token, message, job.attempts >= MAX_ATTEMPTS || isSubscriptionLimit(err)]);
     }
     return true;
   }
@@ -210,11 +212,13 @@ export class EvidenceProcessor {
           } catch (err) {
             // A safety limit was reached: keep what fits, report partial.
             // Anything else (e.g. the job was taken over) is a real failure.
-            if (!LIMIT_ERRORS.test(err instanceof Error ? err.message : "")) throw err;
+            const subscription = isSubscriptionLimit(err);
+            if (!subscription && !LIMIT_ERRORS.test(err instanceof Error ? err.message : "")) throw err;
             await client.query("ROLLBACK TO SAVEPOINT child");
             await this.vault.delete(c.key).catch(() => undefined);
             status = "partial";
-            detail = `${detail} Some contained files were not unpacked because a safety limit was reached.`.trim();
+            const why = subscription ? "the firm's trial storage limit was reached" : "a safety limit was reached";
+            if (!detail.includes(why)) detail = `${detail} Some contained files were not unpacked because ${why}.`.trim();
           }
         }
         if (rendition) {
@@ -290,7 +294,7 @@ export class EvidenceProcessor {
     } catch (err) {
       if (stored) await this.vault.delete(key).catch(() => undefined);
       const message = err instanceof Error ? err.message : "copy failed";
-      await this.pool.query("SELECT huis.worker_fail_copy($1, $2, $3, $4)", [req.request_id, req.lock_token, message, req.attempts >= MAX_ATTEMPTS]);
+      await this.pool.query("SELECT huis.worker_fail_copy($1, $2, $3, $4)", [req.request_id, req.lock_token, message, req.attempts >= MAX_ATTEMPTS || isSubscriptionLimit(err)]);
     } finally {
       await rm(workDir, { recursive: true, force: true });
     }

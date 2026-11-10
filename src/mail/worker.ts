@@ -232,7 +232,9 @@ export class MailWorker {
     } catch (err) {
       if (stored) await this.vault.delete(key).catch(() => undefined);
       await this.pool.query("SELECT huis.worker_fail_mail_filing($1, $2, $3, $4)",
-        [f.filing_id, f.lock_token, errText(err), f.attempts >= MAX_ATTEMPTS || needsReconnect(err)]).catch(() => undefined);
+        [f.filing_id, f.lock_token, errText(err), f.attempts >= MAX_ATTEMPTS || needsReconnect(err)
+          // The firm's subscription refused it (security review 24, R24-4): trying again won't help.
+          || (err as { code?: string } | null)?.code === "HU402"]).catch(() => undefined);
     }
     return true;
   }
