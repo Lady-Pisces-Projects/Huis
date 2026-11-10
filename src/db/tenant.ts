@@ -1,6 +1,6 @@
 import { isIP } from "node:net";
 import pg from "pg";
-import { PermissionDeniedError, UnauthenticatedError } from "../errors";
+import { PermissionDeniedError, UnauthenticatedError, UserFacingError } from "../errors";
 import type { Role } from "../security/permissions";
 
 /** Who is making this request, as established by the sign-in layer. */
@@ -108,6 +108,10 @@ export class HuisDb {
 export function translatePgError(err: unknown): unknown {
   if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "42501") {
     return new PermissionDeniedError("perform this action");
+  }
+  // Subscription limits (Phase 10): the database wrote these messages for the person using Huis.
+  if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "HU402" && err instanceof Error) {
+    return new UserFacingError(err.message.slice(0, 300), 402);
   }
   return err;
 }

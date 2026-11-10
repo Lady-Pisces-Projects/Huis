@@ -51,6 +51,8 @@ async function main() {
   const vault = new EvidenceVault(new LocalObjectStore(storageDir), new MasterKeyProvider(master));
 
   const f = await newFirm(db);
+  // A paid plan (Phase 10): the made-up firm has more staff than the trial's seats.
+  await admin.query("SELECT huis.operator_set_subscription($1, 'professional', 10, NULL, now() + interval '30 days', 'active', 'QA seed')", [f.firmId]);
   const x = await db.withFirm(f.owner, async (s) => {
     const client = await createClient(s, { kind: "person", displayName: "Pat Smith", email: "pat.smith@example.com" });
     const attorney = await inviteUser(s, { email: `avery@${f.slug}.example`, fullName: "Avery Attorney", role: "attorney", locationId: f.locationId });
