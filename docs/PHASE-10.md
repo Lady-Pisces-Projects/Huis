@@ -1,6 +1,6 @@
 # Phase 10 — Commercial SaaS, Enterprise & White Label
 
-**Status:** Part 4 (financial evidence analysis) built and tested; independent security review 26 in progress. Part 3 (firm billing) built, tested, checked in a real browser and the pre-release check, and through independent security review 25 (1 Medium–High, 1 Medium and 4 Low problems confirmed, all fixed). Part 1 (subscriptions, the 7-day trial, seats and usage) built, tested, checked in a real browser and the pre-release check, and through independent security review 24 (4 Medium and 3 Low problems confirmed, all fixed).
+**Status:** Part 4 (financial evidence analysis) built, tested, checked in a real browser and the pre-release check, and through independent security review 26 (12 problems confirmed, all fixed; the worst, one file able to stall the server, is fixed). Part 3 (firm billing) built, tested, checked in a real browser and the pre-release check, and through independent security review 25 (1 Medium–High, 1 Medium and 4 Low problems confirmed, all fixed). Part 1 (subscriptions, the 7-day trial, seats and usage) built, tested, checked in a real browser and the pre-release check, and through independent security review 24 (4 Medium and 3 Low problems confirmed, all fixed).
 
 ## Plan
 | Part | What | Status |
@@ -8,7 +8,7 @@
 | 10.1 | **Subscriptions and licensing**: plans (7-day free trial, Professional at $237 per seat per month, Enterprise by agreement), seats, trial limits, usage, what happens when a trial ends or a payment is late, the firm's **Subscription** page, and a Huis-only command to set a firm's plan | Review 24 done, fixes in |
 | 10.2 | **Online payment**: subscribe, add seats and pay by card or invoice through a payment processor; receipts | Needs a payment processor (O-11) |
 | 10.3 | **Firm billing**: timekeeping on Matters, rates, expenses, invoices to clients (trust/IOLTA money through a legal payment processor, O-10) | Review 25 done, fixes in |
-| 10.4 | **Financial evidence analysis**: reading bank statements, invoices and ledgers filed as evidence (totals, gaps, unusual entries) by fixed, explainable rules | Built and tested; review 26 in progress |
+| 10.4 | **Financial evidence analysis**: reading bank statements, invoices and ledgers filed as evidence (totals, gaps, unusual entries) by fixed, explainable rules | Review 26 done, fixes in |
 | 10.5 | **White label** for large firms: the firm's name, logo and colours, its own address | After 10.4 |
 | 10.6 | **Huis admin portal**: firms, plans, seats and trials for Huis staff (replaces the operator command) | After 10.2 |
 | 10.7 | **Production security audit** before launch | With production hosting (O-2) |
@@ -77,7 +77,7 @@ It needs `HUIS_MIGRATION_DATABASE_URL`. Anything not given keeps its value; `--s
 | Area | What Huis does |
 |---|---|
 | What it reads | Bank and card statements, ledgers, check registers and spreadsheet exports filed as evidence in the Matter, from their extracted text (scans after OCR). A document counts as financial when Huis reads at least 3 transactions from it |
-| Transactions | A date at the start of a line (03/15/2026, 3/15/26, 2026-03-15, Mar 15, 2026, 15 Mar 2026, or 03/15 with the year from the statement period), a description, and an amount with cents; a second amount on the line is the running balance. Spreadsheet exports with date and amount (or debit and credit) columns. Money out is negative: as written (minus, parentheses, a trailing minus, DR), or, where a statement doesn't sign amounts, as the running balance shows. Impossible dates are skipped |
+| Transactions | A date at the start of a line (03/15/2026, 3/15/26, 2026-03-15, Mar 15, 2026, 15 Mar 2026, or 03/15 with the year from the statement period line, across a year end), a description, and an amount with cents; a second amount on the line is the running balance. Spreadsheet exports with date and amount (or debit and credit) columns. Money out is negative: as written (minus, parentheses, a trailing minus, DR), under a Withdrawals or Debits heading, or as the running balance shows; otherwise an unsigned amount counts as money in. Lines in a daily balance section aren't transactions. Impossible dates are skipped; a document whose dates can only be day-first is read day-first |
 | Totals | Money in, money out and net, and the same by month, per document and across the Matter's financial documents |
 | Worth a look | Each flag names its rule, says why with the numbers, and quotes the exact line: the **running balance** doesn't follow; **opening plus transactions** doesn't reach the closing balance (transactions missing or misread); a **possible duplicate** (same amount to the same payee within 3 days, or the same amount the same day); a **round amount** (a whole hundred dollars, $1,000 or more); **unusually large** (5 times the typical transaction and $500 or more); **cash** withdrawals; **transfers** and payment apps (wire, Zelle, Venmo, PayPal, Cash App); a **gap** of more than 31 days with no transactions (a statement may be missing). The rules are listed on the page |
 | Across documents | The same transaction (date, amount, description) in two documents is listed: overlapping statements, a copy, or worth checking |
@@ -85,7 +85,9 @@ It needs `HUIS_MIGRATION_DATABASE_URL`. Anything not given keeps its value; `--s
 | Who | Firm staff who can see the Matter, for the evidence they can see (ethical walls and folder rules apply). Clients and other outside users never see it. Marked attorney work product |
 | Records | Opening one document's analysis is opening the document: recorded in its chain of custody and the audit log, as in the viewer. The Matter summary is recorded once in the audit log (how many documents, nothing else) |
 
-**Known limits:** amounts need cents; US-style numbers (1,234.56) and month-first dates; a statement's own section headings ("Withdrawals") aren't used to sign amounts, so an unsigned statement without a running balance shows everything as money in; the summary reads the Matter's 200 newest documents with text.
+**Known limits:** amounts need cents; US-style numbers (1,234.56) only — a document with comma-decimal amounts (1.234,56) says so rather than guessing; an unsigned statement with no running balance and no Withdrawals heading shows everything as money in; the summary reads the Matter's 200 newest documents with text (the first 2 million characters of each).
+
+**Security review 26:** see `SECURITY-REVIEW-2026-11.md`; regression tests in `test/security-review-26.test.ts` (12 tests).
 
 **Tests:** `test/finance.test.ts`, 7 tests: reading a statement (year from the period, signs from the running balance, exact positions, opening and closing), every rule with its reason, a broken balance and a closing that doesn't add up; spreadsheet exports (debit and credit columns, quoted fields) and gaps; ordinary letters not treated as financial and impossible dates refused; limits on hostile input; the Matter summary (only financial documents, walled Matters excluded, the same transaction in two documents, custody and audit); clients, walls and other firms kept out.
 

@@ -65,5 +65,7 @@ export function formatBytes(n: number): string {
 }
 
 export function formatDollars(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
+  // "-$6,409.50", not "$-6,409.50".
+  const a = Math.abs(cents);
+  return `${cents < 0 ? "-" : ""}$${(a / 100).toLocaleString("en-US", { minimumFractionDigits: a % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
 }
