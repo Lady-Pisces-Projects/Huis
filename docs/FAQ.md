@@ -281,3 +281,12 @@ Owners, managing partners, administrators and billing administrators have a **Su
 ### Why can't I upload a large file on the trial?
 The trial includes 2 GB of evidence and 100 AI questions a month, so nobody can load a whole discovery set for free. A file that wouldn't fit is refused before it's sent. Subscribing removes the limit.
 
+### Can we keep time and send invoices in Huis?
+Yes. Record time and expenses on each Matter's **Billing** page; time is billed in tenths of an hour at the rate in force that day. Billing staff or the Matter's lead attorney turn unbilled work into a draft invoice, check it, and issue it; the client then sees it on their portal. Issued invoices never change: to correct one, void it and issue a new one.
+
+### Can clients pay invoices online through Huis?
+Not yet. Record payments you receive (check, card, transfer…) against the invoice, and Huis keeps the balance. Online payment needs a legal payment processor, so client funds are handled properly (including trust/IOLTA rules); that's still to be chosen.
+
+### Can timekeepers see or change billing rates?
+They see only their own rate and can't change it, or the rate on their time. Billing staff (owners, managing partners, administrators and billing administrators) set rates.
+
