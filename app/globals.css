@@ -117,3 +117,13 @@ mark { background: #fff1a8; color: inherit; padding: 0 1px; border-radius: 2px; 
 .swatch-redaction { background: #000; }
 button.link { background: none; border: 0; padding: 0; color: var(--accent, #2563eb); text-decoration: underline; cursor: pointer; }
 .viewer-note-form textarea { width: 100%; }
+
+/* Printing an invoice (or any page): just the content. */
+@media print {
+  .nav, .no-print { display: none !important; }
+  .shell { display: block; }
+  .main { padding: 0; }
+  .card { border: none; padding: 0; }
+  body { background: #fff; }
+}
+

@@ -29,6 +29,7 @@ import { MasterKeyProvider } from "../../src/storage/encryption";
 import { EvidenceVault, LocalObjectStore } from "../../src/storage/store";
 import { EvidenceProcessor } from "../../src/worker/processor";
 import { FakeMicrosoft, mimeOf, OID, TID } from "../../test/fake-microsoft";
+import { addExpense, addTime, createDraftInvoice, issueInvoice, recordPayment, setRate } from "../../src/services/billing";
 import { newFirm } from "../../test/helpers";
 
 async function main() {
@@ -142,6 +143,16 @@ async function main() {
   while (await brain.indexOnce()) { /* index */ }
   const answerId = await db.withFirm(avery, (s) => askMatter(s, x.matter.id, "Why was she terminated?"));
   const claimId = await db.withFirm(avery, (s) => addClaimFromTemplate(s, x.matter.id, "fmla_retaliation"));
+  // Billing (Phase 10.3): a rate, time, an expense, an issued invoice with a part payment, and a draft.
+  const today = new Date().toISOString().slice(0, 10);
+  await db.withFirm(f.owner, (s) => setRate(s, { userId: x.attorney.id, rate: "300", effectiveFrom: "2026-01-01" }));
+  await db.withFirm(avery, (s) => addTime(s, x.matter.id, { workDate: today, duration: "1.5", description: "Draft demand letter" }));
+  await db.withFirm(f.owner, (s) => addExpense(s, x.matter.id, { incurredOn: today, description: "Filing fee", amount: "375" }));
+  const invoiceId = await db.withFirm(f.owner, (s) => createDraftInvoice(s, x.matter.id));
+  await db.withFirm(f.owner, (s) => issueInvoice(s, invoiceId, { issuedOn: today, dueOn: today }));
+  await db.withFirm(f.owner, (s) => recordPayment(s, invoiceId, { amount: "100", receivedOn: today, method: "check", reference: "1001" }));
+  await db.withFirm(avery, (s) => addTime(s, x.matter.id, { workDate: today, duration: "0.3", description: "Call with client" }));
+  const draftInvoiceId = await db.withFirm(f.owner, (s) => createDraftInvoice(s, x.matter.id));
   const el = (await db.withFirm(avery, (s) => claimView(s, claimId))).elements[0]!.element;
   const passage = (await db.withFirm(avery, (s) => findEvidenceFor(s, el.id)))[0]!;
   await db.withFirm(avery, (s) => addFactFromPassage(s, el.id, { chunkId: passage.chunkId, relation: "supports" }));
@@ -195,7 +206,7 @@ async function main() {
     HUIS_SESSION_SECRET: secret, HUIS_BASE_URL: "http://localhost:3100", MICROSOFT_CLIENT_ID: "c", MICROSOFT_CLIENT_SECRET: "s",
     GOOGLE_CLIENT_ID: "gc", GOOGLE_CLIENT_SECRET: "gs", DROPBOX_APP_KEY: "dk", DROPBOX_APP_SECRET: "ds",
     GOOGLE_PICKER_API_KEY: "qa-picker-key", GOOGLE_CLOUD_PROJECT_NUMBER: "123456789012" };
-  await writeFile(process.env.HUIS_QA_STATE ?? "qa-state.json", JSON.stringify({ env, cookies, matterId: x.matter.id, walledId: x.walled.id, answerId, claimId, connectionId, integrationId, driveId, dbName: name }, null, 2));
+  await writeFile(process.env.HUIS_QA_STATE ?? "qa-state.json", JSON.stringify({ env, cookies, matterId: x.matter.id, walledId: x.walled.id, answerId, claimId, invoiceId, draftInvoiceId, connectionId, integrationId, driveId, dbName: name }, null, 2));
   await admin.end();
   await db.close();
   console.log("ok");

@@ -28,6 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {can(actor.role, "contacts.view") ? <Link href="/contacts">People &amp; Contacts</Link> : null}
         {can(actor.role, "users.manage") ? <Link href="/users">Users &amp; Access</Link> : null}
         {can(actor.role, "audit.view") ? <Link href="/audit">Audit Log</Link> : null}
+        {INTERNAL_ROLES.has(actor.role) ? <Link href="/billing">Billing</Link> : null}
         {can(actor.role, "licenses.view") ? <Link href="/subscription">Subscription</Link> : null}
         <div className="spacer" />
         <div className="who">{actor.fullName}<br />{ROLE_LABELS[actor.role]}</div>

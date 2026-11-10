@@ -11,6 +11,8 @@ import Link from "next/link";
 import EvidenceUploader from "./uploader";
 import { canExportMatter } from "../../../../src/services/matterExport";
 import { sinceLastAnalysis } from "../../../../src/services/analysis";
+import { listInvoices } from "../../../../src/services/billing";
+import { money, showDay } from "../../../../lib/billing-ui";
 import { EvidenceStatus, formatBytes } from "../../../../lib/ui";
 import { can, INTERNAL_ROLES, type Role } from "../../../../src/security/permissions";
 
@@ -52,6 +54,8 @@ export default async function MatterOverview({ params, searchParams }: {
     return {
       matter, folders, internal, canManage, canEdit, canExport: await canExportMatter(s, id),
       sinceLast: internal ? await sinceLastAnalysis(s, id) : null,
+      // A client sees the Matter's issued invoices (the database never shows them drafts).
+      clientInvoices: s.actor.role === "client" ? await listInvoices(s, id) : [],
       members: members.rows, contacts: linked?.rows ?? [],
       leadName: lead?.full_name ?? "—", clientName: client?.display_name,
       people: canManage ? (await listUsers(s)).filter((u) => u.status === "active") : [],
@@ -81,6 +85,7 @@ export default async function MatterOverview({ params, searchParams }: {
           <Link className="button" href={`/matters/${m.id}/claims`}>Claims matrix</Link>
           <Link className="button" href={`/matters/${m.id}/analysis`}>Analysis</Link>
           <Link className="button" href={`/matters/${m.id}/court`}>Court calendar</Link>
+          <Link className="button" href={`/matters/${m.id}/billing`}>Billing</Link>
         </p>
       ) : null}
       {data.sinceLast && data.sinceLast.lastRun && data.sinceLast.evidence ? (
@@ -90,6 +95,21 @@ export default async function MatterOverview({ params, searchParams }: {
         </p>
       ) : null}
       <FlashBanner flash={flash} />
+      {data.clientInvoices.length ? (
+        <div className="card">
+          <h2>Invoices</h2>
+          <table><tbody>
+            {data.clientInvoices.map((i) => (
+              <tr key={i.id}>
+                <td><Link href={`/matters/${m.id}/billing/invoices/${i.id}`}>{i.number}</Link></td>
+                <td>{i.issuedOn ? showDay(i.issuedOn) : ""}</td>
+                <td>{i.status === "paid" ? "Paid" : i.status === "void" ? "Void" : i.dueOn ? `Due ${showDay(i.dueOn)}` : ""}</td>
+                <td style={{ textAlign: "right" }}>{money(i.totalCents)}</td>
+              </tr>
+            ))}
+          </tbody></table>
+        </div>
+      ) : null}
 
       <div className="grid">
         <div className="card">
