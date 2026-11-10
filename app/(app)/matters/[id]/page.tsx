@@ -85,6 +85,7 @@ export default async function MatterOverview({ params, searchParams }: {
           <Link className="button" href={`/matters/${m.id}/claims`}>Claims matrix</Link>
           <Link className="button" href={`/matters/${m.id}/analysis`}>Analysis</Link>
           <Link className="button" href={`/matters/${m.id}/court`}>Court calendar</Link>
+          <Link className="button" href={`/matters/${m.id}/financial`}>Financial analysis</Link>
           <Link className="button" href={`/matters/${m.id}/billing`}>Billing</Link>
         </p>
       ) : null}
