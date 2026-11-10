@@ -416,6 +416,21 @@ Also fixed while reviewing: overlapping passages could produce a second, cut-sho
 | R24-6 | Low | The operator command accepted impossible dates (31 February became 3 March) and was an hour off in summer | Impossible dates refused; the end of the day in Utah, summer time included |
 | R24-7 | Low | The AI-question limit was checked only after the AI work was done | Checked first; the database checks again when the question is saved |
 
+## Twenty-fifth review — Phase 10 part 3 (firm billing)
+
+**Result:** nothing High. Locked items couldn't be changed directly, issued invoices couldn't be edited or deleted, numbering held under concurrent issues (no duplicates, no gaps on rollback), clients never saw drafts, time sheets, expenses or rates, walls and other firms were kept out, and billing can't be used to get around the subscription pause. The reviewer confirmed 1 Medium–High, 1 Medium and 4 Low problems. **All fixed**, in `db/migrations/0031_review25.sql` and the service and pages, with regression tests in `test/security-review-25.test.ts` (6 tests; all failed against the code as reviewed).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R25-1 | Medium–High | An item taken off (or changed on, or added to) a draft while that draft was being issued could be billed and stay unbilled too, or stay locked with content different from what was billed | Changes to an item wait for an issue in progress and are refused once it's issued; issuing holds its items while it copies them |
+| R25-2 | Medium | A timekeeper could undo a billing manager's write-down on their own time (changing the rate or the date brought back the standard rate) | Only billing staff change an entry's rate; a date change keeps it |
+| R25-3 | Low–Medium | A lead attorney (not billing staff) editing a colleague's time wiped its rate to $0 | Same fix: the rate stays as it was |
+| R25-4 | Low | A draft whose items were all made non-billable was issued as a numbered $0 invoice with no lines | Non-billable items leave the draft when it's issued; an invoice with nothing billable isn't issued |
+| R25-5 | Low | Colleagues' rates (hidden in the rate table) could be read from the rate copied onto each time entry | The app can't read that column: rates come from a function that gives only your own, unless you're billing staff or invoice the Matter. Others see a dash; Matter totals come from a total-only function |
+| R25-6 | Low | A timekeeper who can't invoice could move their own items on and off drafts | Only those who invoice the Matter change what's on an invoice |
+
+**Noted for later:** invoice and payment dates are checked against the server's date, not the firm's time zone (an evening invoice can default to tomorrow's date in Utah); time and expense dates have no limits; time with no rate is billed at $0 with a warning on the page only.
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — Microsoft sign-in doesn't yet require proof of MFA. Plan: require the firm's Microsoft MFA (Conditional Access) or a Huis passkey. Part of the end-of-build Azure/hosting step.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.

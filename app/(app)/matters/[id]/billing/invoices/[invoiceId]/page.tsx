@@ -31,7 +31,8 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
   const due30 = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
   const owed = (inv.totalCents ?? 0) - inv.paidCents;
   const hidden = <><input type="hidden" name="matterId" value={id} /><input type="hidden" name="invoiceId" value={inv.id} /></>;
-  const draftTotal = inv.draft ? inv.draft.timeCents + inv.draft.expenseCents : 0;
+  // Null when some time on the draft is someone else's and this reader can't see its rate.
+  const draftTotal = inv.draft && inv.draft.timeCents !== null ? inv.draft.timeCents + inv.draft.expenseCents : null;
 
   return (
     <>
@@ -46,7 +47,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
           <span className={inv.overdue ? "badge privileged" : inv.status === "draft" ? "badge walled" : "badge"}>{inv.overdue ? "Overdue" : STATUS_LABELS[inv.status]}</span>
         </div>
         <table style={{ marginTop: 16 }}><tbody>
-          <tr><td style={{ width: 160 }} className="notice">Client</td><td>{inv.clientName}</td></tr>
+          {inv.clientName ? <tr><td style={{ width: 160 }} className="notice">Client</td><td>{inv.clientName}</td></tr> : null}
           <tr><td className="notice">Matter</td><td>{inv.matterTitle} <span className="notice">({inv.matterNumber})</span></td></tr>
           {inv.issuedOn ? <tr><td className="notice">Issued</td><td>{showDay(inv.issuedOn)}</td></tr> : null}
           {inv.dueOn ? <tr><td className="notice">Due</td><td>{showDay(inv.dueOn)}</td></tr> : null}
@@ -63,7 +64,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
                 {inv.draft.time.map((t) => (
                   <tr key={t.id}>
                     <td style={{ whiteSpace: "nowrap" }}>{showDay(t.workDate)}</td><td>{t.description} <span className="notice">· {t.userName}</span></td>
-                    <td style={{ textAlign: "right" }}>{hours(t.minutes)}</td><td style={{ textAlign: "right" }}>{money(t.rateCents)}</td><td style={{ textAlign: "right" }}>{money(t.amountCents)}</td>
+                    <td style={{ textAlign: "right" }}>{hours(t.minutes)}</td><td style={{ textAlign: "right" }}>{t.rateHidden ? "—" : money(t.rateCents)}</td><td style={{ textAlign: "right" }}>{money(t.amountCents)}</td>
                     <td>{inv.canInvoice ? <form action={removeFromDraftAction}>{hidden}<input type="hidden" name="kind" value="time" /><input type="hidden" name="itemId" value={t.id} /><button className="secondary" type="submit">Take off</button></form> : null}</td>
                   </tr>
                 ))}
@@ -128,7 +129,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
             {hidden}
             <label>Invoice date<input type="date" name="issuedOn" defaultValue={today} required /></label>
             <label>Due<input type="date" name="dueOn" defaultValue={due30} required /></label>
-            <button type="submit">Issue invoice for {money(draftTotal)}</button>
+            <button type="submit">Issue invoice{draftTotal !== null ? ` for ${money(draftTotal)}` : ""}</button>
           </form>
           <p className="notice">Issuing gives it the firm&apos;s next number and fixes its lines and total; the client can then see it. To change an issued invoice, void it and issue a new one.</p>
           <form action={deleteDraftInvoiceAction}>{hidden}<button className="secondary" type="submit">Delete this draft</button></form>

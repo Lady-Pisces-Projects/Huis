@@ -71,8 +71,8 @@ describe("time, rates and expenses", () => {
     expect(e.userId).toBe(x.para.id);
     expect(e.rateCents).toBe(15000);
     // Directly in the database too.
-    await expect(db.withFirm(x.paraCtx, (s) => s.client.query("UPDATE huis.time_entries SET rate_cents = 99900 WHERE id = $1 RETURNING rate_cents", [e.id])))
-      .resolves.toMatchObject({ rows: [{ rate_cents: 15000 }] });
+    await db.withFirm(x.paraCtx, (s) => s.client.query("UPDATE huis.time_entries SET rate_cents = 99900 WHERE id = $1", [e.id]));
+    expect((await t.admin.query("SELECT rate_cents FROM huis.time_entries WHERE id = $1", [e.id])).rows[0].rate_cents).toBe(15000);
     await expect(db.withFirm(x.paraCtx, (s) => s.client.query(
       "INSERT INTO huis.time_entries (firm_id, matter_id, user_id, work_date, minutes, description) VALUES ($1, $2, $3, current_date, 60, 'x')",
       [x.firmId, x.matter.id, x.attorney.id]))).rejects.toBeInstanceOf(PermissionDeniedError);
@@ -88,12 +88,12 @@ describe("time, rates and expenses", () => {
     const x = await setup();
     await db.withFirm(x.paraCtx, (s) => addTime(s, x.matter.id, { workDate: today(), duration: "1", description: "Privileged strategy note" }));
     await expect(db.withFirm(x.portalCtx, (s) => matterBilling(s, x.matter.id))).rejects.toBeInstanceOf(PermissionDeniedError);
-    expect((await db.withFirm(x.portalCtx, (s) => s.client.query("SELECT * FROM huis.time_entries"))).rows).toHaveLength(0);
+    expect((await db.withFirm(x.portalCtx, (s) => s.client.query("SELECT id FROM huis.time_entries"))).rows).toHaveLength(0);
     await expect(db.withFirm(x.readerCtx, (s) => addTime(s, x.matter.id, { workDate: today(), duration: "1", description: "x" }))).rejects.toBeInstanceOf(PermissionDeniedError);
     expect((await db.withFirm(x.readerCtx, (s) => matterBilling(s, x.matter.id))).time).toHaveLength(1);
     await expect(db.withFirm(x.paraCtx, (s) => addTime(s, x.walled.id, { workDate: today(), duration: "1", description: "x" }))).rejects.toBeInstanceOf(NotFoundError);
     const other = await newFirm(db);
-    expect((await db.withFirm(other.owner, (s) => s.client.query("SELECT * FROM huis.time_entries"))).rows).toHaveLength(0);
+    expect((await db.withFirm(other.owner, (s) => s.client.query("SELECT id FROM huis.time_entries"))).rows).toHaveLength(0);
     // A DELETE with no WHERE clause reaches only what the person may change.
     await db.withFirm(x.attCtx, (s) => addTime(s, x.matter.id, { workDate: today(), duration: "1", description: "mine" }));
     await db.withFirm(x.paraCtx, (s) => s.client.query("DELETE FROM huis.time_entries"));

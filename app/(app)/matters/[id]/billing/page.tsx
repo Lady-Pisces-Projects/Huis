@@ -81,7 +81,7 @@ export default async function MatterBillingPage({ params, searchParams }: { para
                   <td>{e.userName}</td>
                   <td>{e.description} {status(e)}</td>
                   <td style={{ textAlign: "right" }}>{hours(e.minutes)}</td>
-                  <td style={{ textAlign: "right" }}>{e.rateCents === null ? <span className="notice">none</span> : money(e.rateCents)}</td>
+                  <td style={{ textAlign: "right" }}>{e.rateHidden ? <span className="notice" title="Only billing staff and the Matter's invoicers see colleagues' rates">—</span> : e.rateCents === null ? <span className="notice">none</span> : money(e.rateCents)}</td>
                   <td style={{ textAlign: "right" }}>{e.billable ? money(e.amountCents) : "—"}</td>
                   <td>{canWrite && (e.mine || b.canInvoice) && e.invoiceStatus !== "issued" && e.invoiceStatus !== "paid" ? (
                     <form action={deleteTimeAction}><input type="hidden" name="matterId" value={id} /><input type="hidden" name="entryId" value={e.id} /><button className="secondary" type="submit">Remove</button></form>

@@ -87,7 +87,8 @@ export async function listRates(s: FirmSession): Promise<Rate[]> {
 // ---------------------------------------------------------------------------
 export interface TimeEntry {
   id: string; userId: string; userName: string; workDate: string; minutes: number; description: string; billable: boolean;
-  rateCents: number | null; amountCents: number; invoiceId: string | null; invoiceStatus: string | null; mine: boolean;
+  /** Null when there's no rate, or (rateHidden) when it's someone else's and the reader isn't billing staff or an invoicer. */
+  rateCents: number | null; amountCents: number | null; rateHidden: boolean; invoiceId: string | null; invoiceStatus: string | null; mine: boolean;
 }
 export interface Expense {
   id: string; incurredOn: string; description: string; amountCents: number; billable: boolean;
@@ -160,18 +161,26 @@ export interface MatterBilling {
 export async function matterBilling(s: FirmSession, matterId: string): Promise<MatterBilling> {
   staff(s);
   await getMatter(s, matterId);
+  // Rates come separately: only the reader's own, unless they're billing staff or invoice the Matter (review 25, R25-5).
+  const rates = new Map((await s.client.query<{ entry_id: string; rate_cents: number | null }>(
+    "SELECT entry_id, rate_cents FROM huis.time_entry_rates($1)", [matterId])).rows.map((r) => [r.entry_id, r.rate_cents]));
   const t = await s.client.query(
-    `SELECT t.*, u.full_name, i.status AS invoice_status, t.work_date::text AS day FROM huis.time_entries t
+    `SELECT t.id, t.user_id, t.minutes, t.description, t.billable, t.invoice_id, u.full_name, i.status AS invoice_status, t.work_date::text AS day
+       FROM huis.time_entries t
        JOIN huis.users u ON u.id = t.user_id LEFT JOIN huis.invoices i ON i.id = t.invoice_id
       WHERE t.matter_id = $1 ORDER BY t.work_date DESC, t.created_at DESC LIMIT 2000`, [matterId]);
   const e = await s.client.query(
     `SELECT e.*, i.status AS invoice_status, e.incurred_on::text AS day FROM huis.expenses e LEFT JOIN huis.invoices i ON i.id = e.invoice_id
       WHERE e.matter_id = $1 ORDER BY e.incurred_on DESC, e.created_at DESC LIMIT 2000`, [matterId]);
-  const time: TimeEntry[] = t.rows.map((r) => ({
-    id: r.id, userId: r.user_id, userName: r.full_name, workDate: r.day, minutes: r.minutes, description: r.description,
-    billable: r.billable, rateCents: cents(r.rate_cents), amountCents: r.billable ? timeAmount(r.minutes, cents(r.rate_cents)) : 0,
-    invoiceId: r.invoice_id, invoiceStatus: r.invoice_status, mine: r.user_id === s.actor.userId,
-  }));
+  const time: TimeEntry[] = t.rows.map((r) => {
+    const hidden = !rates.has(r.id);
+    const rate = hidden ? null : cents(rates.get(r.id));
+    return {
+      id: r.id, userId: r.user_id, userName: r.full_name, workDate: r.day, minutes: r.minutes, description: r.description,
+      billable: r.billable, rateCents: rate, rateHidden: hidden, amountCents: !r.billable ? 0 : hidden ? null : timeAmount(r.minutes, rate),
+      invoiceId: r.invoice_id, invoiceStatus: r.invoice_status, mine: r.user_id === s.actor.userId,
+    };
+  });
   const expenses: Expense[] = e.rows.map((r) => ({
     id: r.id, incurredOn: r.day, description: r.description, amountCents: Number(r.amount_cents), billable: r.billable,
     invoiceId: r.invoice_id, invoiceStatus: r.invoice_status, mine: r.created_by === s.actor.userId,
@@ -182,13 +191,16 @@ export async function matterBilling(s: FirmSession, matterId: string): Promise<M
     ? (await s.client.query("SELECT id, full_name FROM huis.users WHERE status = 'active' AND huis.is_internal_role(role) ORDER BY full_name")).rows
         .map((r) => ({ id: r.id, name: r.full_name }))
     : [];
+  // The unbilled total comes from the database (a total, not anyone's rate).
+  const unbilledTotal = Number((await s.client.query<{ c: string }>("SELECT huis.matter_unbilled_cents($1) AS c", [matterId])).rows[0]?.c ?? 0);
+  const expenseCents = expenses.filter(open).reduce((a, x) => a + x.amountCents, 0);
   return {
     time, expenses, canInvoice, isManager: isManager(s), timekeepers,
     unbilled: {
-      timeCents: time.filter(open).reduce((a, x) => a + x.amountCents, 0),
-      expenseCents: expenses.filter(open).reduce((a, x) => a + x.amountCents, 0),
+      timeCents: unbilledTotal - expenseCents,
+      expenseCents,
       minutes: time.filter(open).reduce((a, x) => a + x.minutes, 0),
-      missingRates: time.filter((x) => open(x) && x.rateCents === null).length,
+      missingRates: time.filter((x) => open(x) && !x.rateHidden && x.rateCents === null).length,
     },
     invoices: await listInvoices(s, matterId),
   };
@@ -206,7 +218,7 @@ export interface Invoice extends InvoiceSummary {
   notes: string; timeCents: number | null; expenseCents: number | null;
   lines: InvoiceLine[];
   /** For a draft: what it holds now (not yet copied into lines). */
-  draft: { time: TimeEntry[]; expenses: Expense[]; timeCents: number; expenseCents: number } | null;
+  draft: { time: TimeEntry[]; expenses: Expense[]; timeCents: number | null; expenseCents: number } | null;
   payments: { amountCents: number; receivedOn: string; method: (typeof PAYMENT_METHODS)[number]; reference: string }[];
   canInvoice: boolean;
   firmName: string;
@@ -278,7 +290,12 @@ export async function getInvoice(s: FirmSession, invoiceId: string): Promise<Inv
     const all = await matterBilling(s, r.matter_id);
     const time = all.time.filter((x) => x.invoiceId === invoiceId);
     const expenses = all.expenses.filter((x) => x.invoiceId === invoiceId);
-    draft = { time, expenses, timeCents: time.reduce((a, x) => a + x.amountCents, 0), expenseCents: expenses.reduce((a, x) => a + (x.billable ? x.amountCents : 0), 0) };
+    draft = {
+      time, expenses,
+      // Null when some of the time is someone else's and the reader can't see its rate.
+      timeCents: time.some((x) => x.amountCents === null) ? null : time.reduce((a, x) => a + (x.amountCents ?? 0), 0),
+      expenseCents: expenses.reduce((a, x) => a + (x.billable ? x.amountCents : 0), 0),
+    };
   }
   const canInvoice = INTERNAL_ROLES.has(s.actor.role)
     && ((await s.client.query<{ ok: boolean }>("SELECT huis.can_invoice_matter($1) AS ok", [r.matter_id])).rows[0]?.ok ?? false);
@@ -355,11 +372,8 @@ export async function recordPayment(s: FirmSession, invoiceId: string, input: un
 export async function billingOverview(s: FirmSession) {
   staff(s);
   const unbilled = (await s.client.query(
-    `SELECT m.id, m.title,
-            coalesce((SELECT sum(huis.time_amount(t.minutes, t.rate_cents)) FROM huis.time_entries t WHERE t.matter_id = m.id AND t.invoice_id IS NULL AND t.billable), 0) AS time_cents,
-            coalesce((SELECT sum(e.amount_cents) FROM huis.expenses e WHERE e.matter_id = m.id AND e.invoice_id IS NULL AND e.billable), 0) AS expense_cents
-       FROM huis.matters m WHERE huis.dna_readable(m.id)`)).rows
-    .map((r) => ({ matterId: r.id, title: r.title, cents: Number(r.time_cents) + Number(r.expense_cents) }))
+    "SELECT m.id, m.title, huis.matter_unbilled_cents(m.id) AS cents FROM huis.matters m WHERE huis.dna_readable(m.id)")).rows
+    .map((r) => ({ matterId: r.id, title: r.title, cents: Number(r.cents ?? 0) }))
     .filter((r) => r.cents > 0).sort((a, b) => b.cents - a.cents);
   const invoices = await listInvoices(s);
   const outstanding = invoices.filter((i) => i.status === "issued");
