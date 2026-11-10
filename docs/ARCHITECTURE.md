@@ -142,6 +142,7 @@ Next.js + React + TypeScript + Tailwind; TypeScript backend (Python services onl
 | O-8 | Trademark search for "Huis Law IP," Case DNA™, Case Gaps™, What-If Analysis™ | Tracy |
 | O-9 | Launch targets: demo date, first paying firm | Tracy |
 | O-10 | Trust/IOLTA money: integrate a legal payment processor rather than holding client funds | Build team |
+| O-11 | Payment processor for Huis subscriptions (e.g. Stripe): account, card and invoice payments, tax; until then Huis sets each firm's plan with `scripts/operator/set-subscription.ts` | Tracy + build team |
 
 ---
 

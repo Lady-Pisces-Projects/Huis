@@ -268,3 +268,16 @@ Yes, and no. Connect your own Google account, then use **Choose files in Google 
 
 ### What about Google Drive, Filevine, Clio and StrongSuit?
 Google Drive comes next: first with Google's own file picker (Huis can only open the files you pick), then full browsing once Google's security assessment is done. Filevine and Clio need developer access from those companies, and StrongSuit (which supports an API connection and a user-interface merger) is being discussed with them. The Integrations page shows where each stands.
+
+### What happens when our free trial ends?
+Nothing is deleted or hidden. Everyone can still sign in, open every Matter and document, and export a whole Matter: your firm owns its data. Adding new work (new Matters, evidence, AI questions, imports and people) pauses until the firm subscribes, and it starts again the moment it does. The same applies if a payment is more than 7 days late.
+
+### Do clients, co-counsel and experts need a paid seat?
+No. Seats are for attorneys and firm staff. People outside the firm you add to a Matter don't take one.
+
+### Where can I see our plan and usage?
+Owners, managing partners, administrators and billing administrators have a **Subscription** page: the plan, trial days left or paid-through date, the monthly amount, and how many seats, how much storage and how many AI questions this month are in use. To subscribe or add seats, contact Huis; online payment is coming.
+
+### Why can't I upload a large file on the trial?
+The trial includes 2 GB of evidence and 100 AI questions a month, so nobody can load a whole discovery set for free. A file that wouldn't fit is refused before it's sent. Subscribing removes the limit.
+
