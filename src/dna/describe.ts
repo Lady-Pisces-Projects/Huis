@@ -48,6 +48,9 @@ const CLAIM_RULES: { label: string; all: RegExp[] }[] = [
   { label: "Unpaid wages", all: [/\b(unpaid wages|unpaid overtime|wage theft|final paycheck)\b/i] },
 ];
 
+/** Every claim label the rules can suggest (the database accepts only these; db/migrations/0035_review28.sql). */
+export const CLAIM_LABELS = CLAIM_RULES.map((r) => r.label);
+
 function clean(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
@@ -79,9 +82,10 @@ export function suggestFromDescription(text: string): DescriptionSuggestion[] {
 
   for (const m of t.matchAll(CAPTION)) {
     for (const [name, offset] of [[m[1]!, 0], [m[2]!, m[0].length - m[2]!.length]] as const) {
-      const label = clean(name).replace(/[.,]$/, "");
+      const trimmed = name.replace(/[.,]+$/, "");
+      const label = clean(trimmed);
       if (label.length >= 2) add({ kind: /\b(Inc|LLC|Corp|Company|Co|Ltd|LLP|Bank|County|City|State)\b/.test(label) ? "organization" : "person",
-        label, start: m.index! + offset, end: m.index! + offset + name.length });
+        label, start: m.index! + offset, end: m.index! + offset + trimmed.length });
     }
   }
   for (const m of t.matchAll(ORG)) {
@@ -90,7 +94,7 @@ export function suggestFromDescription(text: string): DescriptionSuggestion[] {
     add({ kind: "organization", label, start: m.index!, end: m.index! + m[0].length });
   }
   for (const m of t.matchAll(PERSON)) {
-    add({ kind: "person", label: clean(`${m[1]}. ${m[2]}`).replace("..", "."), start: m.index!, end: m.index! + m[0].length });
+    add({ kind: "person", label: clean(m[0]), start: m.index!, end: m.index! + m[0].length });
   }
   for (const e of findEvents(t)) {
     add({ kind: "event", label: e.label, date: e.date, start: e.start, end: e.end });

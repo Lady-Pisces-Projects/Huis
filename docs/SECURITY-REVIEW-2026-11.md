@@ -464,6 +464,21 @@ Also fixed while reviewing: overlapping passages could produce a second, cut-sho
 
 Also closed (raised as unconfirmed): a second subscription completed while the first is live no longer replaces it (double checkout); an abandoned checkout (`incomplete_expired`) never ends access. Still open from this review: promotion codes (checkout accepts every active code in the Stripe account, so keep only intended codes active); a wrong or rotated Stripe key makes every notification fail, and Stripe disables the endpoint after a few days of failures, so Stripe's webhook failure emails must go to someone who acts on them.
 
+## Twenty-eighth review — the trial rules of 11 November 2026 and reading a case description
+
+**Result:** who may have a description read (other firms, clients, read-only users, other staff, walled Matters), quotes taken from the stored note, `first_paid_at` (the app can't set or clear it; a trial subscription not yet charged and failed payments don't set it), and the AI count's dates all held, and no input made the description reader slow (worst about 94 ms at 5,000 characters). The reviewer confirmed 3 Medium and 3 Low problems with working tests. **All fixed**, in `db/migrations/0035_review28.sql`, `src/services/caseDescription.ts`, `src/dna/describe.ts` and the Subscription page and FAQ wording; regression tests in `test/security-review-28.test.ts` (6 tests), with more in `test/trial-rules.test.ts`.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R28-1 | Medium | Any staff member could create "Huis suggested" Case DNA items from any note they wrote, with any label, kind or date (no creator recorded, no audit entry, and they can't be deleted) | Only a note titled "Case description". A person's, organization's or event's label is set by the database to the cited words; a claim must be one of the fixed claims the rules suggest; an event's date must appear in its words; each reading is audited |
+| R28-2 | Medium | One description could be replayed into thousands of suggestions, filling the Matter's 2,000 cap so Huis stopped suggesting anything from evidence | One reading per description (a second is refused), at most 40 suggestions, the cap checked for each |
+| R28-3 | Medium | Deleting your own Matter Brain answers or agent turns gave trial AI questions back, so "100 for the whole trial" had no real limit | Questions asked are counted in a tally that only grows (`huis.ai_question_tally`), which the app can't read or change |
+| R28-4 | Low | An emoji earlier in a description shifted every quote after it (JavaScript and the database count positions differently) | Positions are converted to characters before they're sent |
+| R28-5 | Low | A long description with line breaks that the form accepted could make creating the Matter fail (browsers send a line break as two characters) | Line breaks are normalised before the length check |
+| R28-6 | Low–Medium | The page and FAQ promised "once your firm has subscribed, Huis never deletes its cases", but a firm that subscribed during the trial and cancelled, or whose first charge failed, is still deleted (correctly) | The wording now says "once your firm has made its first payment", and says when a trial subscription still counts as unpaid |
+
+Still open from this review: a **100%-off promotion code** would make Stripe report a first "payment" of $0, so that firm would count as paid and never be deleted. Founding-member codes should be partial discounts, or Tracy decides whether a free code counts as paying.
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — Microsoft sign-in doesn't yet require proof of MFA. Plan: require the firm's Microsoft MFA (Conditional Access) or a Huis passkey. Part of the end-of-build Azure/hosting step.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { HuisDb, RequestContext } from "../src/db/tenant";
-import { descriptionNoteText, MAX_SUGGESTIONS, suggestFromDescription } from "../src/dna/describe";
-import { askMatter } from "../src/services/brain";
+import { CLAIM_LABELS, descriptionNoteText, MAX_SUGGESTIONS, suggestFromDescription } from "../src/dna/describe";
+import { addNote, askMatter } from "../src/services/brain";
 import { saveCaseDescription } from "../src/services/caseDescription";
 import { createClient } from "../src/services/clients";
 import { listNodes } from "../src/services/dna";
@@ -147,17 +147,31 @@ describe("reading a case description", () => {
     expect(await db.withFirm(f.owner, (s) => saveCaseDescription(s, f.matter.id, "   "))).toBeNull();
   });
 
-  it("the quotes come from the stored note, never from the caller; offsets outside it are ignored", async () => {
+  it("labels are the cited words (set by the database), claims come from the fixed list, and each description is read once", async () => {
     const f = await firmWithMatter();
-    const r = await db.withFirm(f.owner, (s) => saveCaseDescription(s, f.matter.id, "A short note about nothing."));
-    const n = await db.withFirm(f.owner, (s) => s.client.query("SELECT huis.suggest_from_case_description($1, $2::jsonb) AS n", [r!.noteId, JSON.stringify([
-      { kind: "person", label: "Injected", start: 0, end: 4, quote: "something else entirely" },
-      { kind: "person", label: "Out of range", start: 10, end: 999999 },
-      { kind: "evidence", label: "Wrong kind", start: 0, end: 4 },
+    const body = "Met Ms. Rivera at Wasatch Bank LLC on April 2, 2026.";
+    const noteId = await db.withFirm(f.owner, (s) => addNote(s, f.matter.id, { title: "Case description", body }));
+    const at = (w: string) => "Case description\n\n".length + body.indexOf(w);
+    const n = await db.withFirm(f.owner, (s) => s.client.query("SELECT huis.suggest_from_case_description($1, $2::jsonb) AS n", [noteId, JSON.stringify([
+      { kind: "person", label: "Injected label", start: at("Ms. Rivera"), end: at("Ms. Rivera") + 10 },
+      { kind: "claim", label: "Something invented", start: at("Met"), end: at("Met") + 3 },
+      { kind: "claim", label: "Unpaid wages", start: at("Met"), end: at("Met") + 3 },
+      { kind: "event", label: "x", date: "2026-02-14", start: at("Met"), end: body.length + 18 },
+      { kind: "event", label: "x", date: "2026-04-02", start: at("Met"), end: body.length + 18 },
+      { kind: "person", label: "In the title", start: 0, end: 4 },
     ])]));
-    expect(n.rows[0].n).toBe(1);
-    const q = await t.admin.query("SELECT c.quote FROM huis.dna_citations c JOIN huis.dna_nodes d ON d.id = c.node_id WHERE d.label = 'Injected' AND c.matter_id = $1", [f.matter.id]);
-    expect(q.rows[0].quote).toBe("Case");
+    expect(n.rows[0].n).toBe(3);
+    const labels = (await t.admin.query("SELECT label FROM huis.dna_nodes WHERE matter_id = $1 AND origin = 'huis' ORDER BY label", [f.matter.id])).rows.map((r) => r.label);
+    expect(labels).toEqual([body, "Ms. Rivera", "Unpaid wages"]);
+    await expect(db.withFirm(f.owner, (s) => s.client.query("SELECT huis.suggest_from_case_description($1, '[]'::jsonb)", [noteId])))
+      .rejects.toThrow(/already been read/);
+    const audit = await t.admin.query("SELECT metadata FROM huis.audit_events WHERE action = 'case_description.read' AND target_id = $1", [noteId]);
+    expect(audit.rows[0].metadata).toMatchObject({ suggested: 3 });
+  });
+
+  it("every claim the rules can suggest is one the database accepts", async () => {
+    const rows = (await t.admin.query("SELECT unnest(huis.case_description_claims()) AS c")).rows.map((r) => r.c);
+    expect([...CLAIM_LABELS].sort()).toEqual([...rows].sort());
   });
 
   it("only the note's own author, at the firm, can have it read; clients can't", async () => {

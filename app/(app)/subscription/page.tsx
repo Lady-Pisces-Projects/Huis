@@ -53,7 +53,7 @@ export default async function SubscriptionPage({ searchParams }: { searchParams:
       {sub.deleteAfter ? (
         <div className="card" style={{ borderColor: "#b42318" }}>
           <h2>Your files will be deleted on {date(sub.deleteAfter)}</h2>
-          <p>The free trial ended on {date(sub.accessEndedAt!)} without a subscription. Until {date(sub.deleteAfter)}, everyone can still sign in,
+          <p>The free trial ended on {date(sub.accessEndedAt!)} without a first payment. Until {date(sub.deleteAfter)}, everyone can still sign in,
             open and export every Matter. After that date the firm&apos;s files and data are permanently deleted. Subscribing before then keeps everything.</p>
         </div>
       ) : null}
@@ -114,11 +114,11 @@ export default async function SubscriptionPage({ searchParams }: { searchParams:
       <div className="card">
         <h2>If the trial ends, or the subscription stops</h2>
         <p className="notice">
-          <strong>If the free trial ends without subscribing:</strong> adding new work pauses, and for 30 days everyone can still sign in, open
+          <strong>If the free trial ends before a first payment</strong> (including if you subscribed during the trial but cancelled, or the first charge failed): adding new work pauses, and for 30 days everyone can still sign in, open
           and export everything. After those 30 days the firm&apos;s files and data are permanently deleted.
         </p>
         <p className="notice">
-          <strong>Once your firm has subscribed, Huis never deletes its cases for non-payment.</strong> If the subscription stops, adding new work
+          <strong>Once your firm has made its first payment, Huis never deletes its cases for non-payment.</strong> If the subscription stops, adding new work
           pauses, and your Matters and information are kept, ready to open and export, until you subscribe again. A late card payment has
           7 days&apos; grace while Stripe retries it. Manage people on <Link href="/users">Users &amp; Access</Link>.
         </p>

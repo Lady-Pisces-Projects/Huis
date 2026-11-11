@@ -273,7 +273,7 @@ Google Drive comes next: first with Google's own file picker (Huis can only open
 7 days, with no card needed. The trial includes 1 seat (the person who signs up), 1 Matter, 2 GB of evidence and 100 AI questions for the whole trial, so you can see Huis work on a real case. Clients, co-counsel and experts you invite don't take a seat.
 
 ### What counts as an AI question?
-A question you type to Matter Brain or to one of the AI agents (timeline, email, evidence, contradictions, privilege). Each one counts once. Everything Huis does by itself is free and unlimited, on the trial too: reading, scanning and searching your files, building the timeline, suggesting people, dates and claims in Case DNA, reading your case description, and analysing the Matter.
+A question you type to Matter Brain or to one of the AI agents (timeline, email, evidence, contradictions, privilege). Each one counts once, and deleting an answer doesn't give the question back. Everything Huis does by itself is free and unlimited, on the trial too: reading, scanning and searching your files, building the timeline, suggesting people, dates and claims in Case DNA, reading your case description, and analysing the Matter.
 
 ### What happens when I describe the case while creating a Matter?
 Huis reads the description straight away and suggests the people, organizations, key dates and possible claims it mentions, each pointing to the words it came from. You confirm or reject them in Case DNA. The description is saved as the Matter's first note, so Matter Brain can search it. It's automatic and doesn't use any AI questions. For now Huis reads it with fixed, explainable rules (names with a title such as "Ms." or "Dr.", company names ending in Inc., LLC and similar, dates, and words that point to a claim), so check each suggestion and add anything it missed.
@@ -284,11 +284,11 @@ On the **Subscription** page, choose **Monthly** ($237 per seat per month) or **
 ### How many seats are we billed for?
 Your active attorneys and staff, automatically. When you add someone, remove someone or change their role, the number of seats billed follows, and Stripe adjusts the charge for the part of the period left.
 
-### What happens when our free trial ends without subscribing?
-Adding new work (new Matters, evidence, AI questions, imports and people) pauses straight away. For **30 days** everyone can still sign in, open every Matter and document, and export a whole Matter, and firm staff see the date the files will be deleted. **After those 30 days, the trial firm's files and data are permanently deleted.** Subscribing at any point before then keeps everything.
+### What happens when our free trial ends before we pay?
+Adding new work (new Matters, evidence, AI questions, imports and people) pauses straight away. For **30 days** everyone can still sign in, open every Matter and document, and export a whole Matter, and firm staff see the date the files will be deleted. **After those 30 days, the trial firm's files and data are permanently deleted.** This also applies if you subscribed during the trial but cancelled before it ended, or the first charge failed. Paying at any point before then keeps everything.
 
-### What if we subscribe and later stop paying?
-**Huis never deletes a subscribing firm's cases for non-payment.** If the subscription stops, adding new work pauses, and your Matters and information are kept, ready to open and export, until you subscribe again. If a card payment fails, Stripe retries it, and work carries on for 7 days' grace first.
+### What if we pay and later stop?
+**Once your firm has made its first payment, Huis never deletes its cases for non-payment.** If the subscription stops, adding new work pauses, and your Matters and information are kept, ready to open and export, until you subscribe again. If a card payment fails, Stripe retries it, and work carries on for 7 days' grace first.
 
 ### Do clients, co-counsel and experts need a paid seat?
 No. Seats are for attorneys and firm staff. People outside the firm you add to a Matter don't take one.
