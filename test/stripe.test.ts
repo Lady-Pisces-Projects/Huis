@@ -185,6 +185,32 @@ describe("Stripe's notifications", () => {
     expect(await send("invoice.paid", { id: "in_1", subscription: f.sub.id })).toEqual({ status: 200, outcome: "unchanged" });
   });
 
+  it("subscribing during the trial keeps the trial's limits until the first payment, then lifts them (R27-1)", async () => {
+    const f = await subscribedFirm({ status: "trialing" });
+    expect(await firmRow(f.firmId)).toMatchObject({ plan: "trial", stripe_status: "trialing" });
+    const more = () => db.withFirm(f.owner, async (s) => {
+      const c = await createClient(s, { kind: "person", displayName: "Second Client" });
+      return createMatter(s, { title: "Second", clientId: c.id, leadAttorneyId: f.ownerUserId, jurisdictionState: "UT" });
+    });
+    await expect(more()).rejects.toThrow(/free trial includes 1 Matter/);
+    // Checkout can't be opened twice.
+    await expect(startCheckout(db, f.owner, cfg(), { interval: "month", baseUrl: BASE })).rejects.toThrow(/already has a subscription/);
+    // The trial ends and Stripe takes the first payment.
+    stripe.subscriptions[f.sub.id]!.status = "active";
+    expect((await send("invoice.paid", { id: "in_9", subscription: f.sub.id })).outcome).toBe("applied");
+    expect((await firmRow(f.firmId)).plan).toBe("professional");
+    await more();
+  });
+
+  it("cancelling during the trial: the trial runs to its own end, and the firm can subscribe again", async () => {
+    const f = await subscribedFirm({ status: "trialing" });
+    stripe.subscriptions[f.sub.id]!.status = "canceled";
+    expect((await send("customer.subscription.deleted", { id: f.sub.id })).outcome).toBe("applied");
+    expect(await firmRow(f.firmId)).toMatchObject({ plan: "trial", stripe_status: "canceled", access_ended_at: null });
+    expect((await db.withFirm(f.owner, (s) => getSubscription(s))).deleteAfter).toBeNull();
+    await startCheckout(db, f.owner, cfg(), { interval: "year", baseUrl: BASE });
+  });
+
   it("refuses a bad signature, a replayed one and an old one", async () => {
     const f = await firmWithMatter();
     const ev = stripe.event("customer.subscription.updated", { id: "sub_Nope" });
@@ -223,7 +249,7 @@ describe("Stripe's notifications", () => {
     const f = await subscribedFirm({ status: "incomplete" });
     expect(f.res.outcome).toBe("ignored: not started");
     stripe.subscriptions[f.sub.id]!.status = "incomplete_expired";
-    expect((await send("customer.subscription.updated", { id: f.sub.id })).outcome).toBe("ignored: firm is on the trial");
+    expect((await send("customer.subscription.updated", { id: f.sub.id })).outcome).toBe("ignored: not started");
     expect((await firmRow(f.firmId)).plan).toBe("trial");
   });
 
@@ -300,13 +326,19 @@ describe("when access ends: read and export for 30 days, then deletion", () => {
     expect((await db.withFirm(f.owner, (s) => getSubscription(s))).deleteAfter).toBeNull();
   });
 
-  it("an old subscription ending doesn't end the firm's current one", async () => {
+  it("an old subscription ending doesn't end the firm's current one; a second one doesn't replace a live one", async () => {
     const f = await subscribedFirm();
+    // Two checkouts completed at once: the second subscription doesn't replace the live one.
+    const second = stripe.addSubscription({ firmId: f.firmId, customer: f.customer, price: PRICE_YEARLY });
+    expect((await send("customer.subscription.created", { id: second.id })).outcome).toBe("ignored: firm already has a subscription");
+    // The first ends, then the firm subscribes again with a new one.
+    stripe.subscriptions[f.sub.id]!.status = "canceled";
+    expect((await send("customer.subscription.deleted", { id: f.sub.id })).outcome).toBe("applied");
     const newer = stripe.addSubscription({ firmId: f.firmId, customer: f.customer, price: PRICE_YEARLY });
     expect((await send("customer.subscription.created", { id: newer.id })).outcome).toBe("applied");
-    stripe.subscriptions[f.sub.id]!.status = "canceled";
+    // A late notification about the old one changes nothing.
     expect((await send("customer.subscription.deleted", { id: f.sub.id })).outcome).toBe("ignored: not the firm's current subscription");
-    expect(await firmRow(f.firmId)).toMatchObject({ billing_interval: "year", access_ended_at: null });
+    expect(await firmRow(f.firmId)).toMatchObject({ billing_interval: "year", access_ended_at: null, stripe_subscription_id: newer.id });
   });
 
   it("a trial that ended unpaid: deletion 30 days after the trial's end, told to staff only", async () => {

@@ -450,6 +450,20 @@ Also fixed while reviewing: overlapping passages could produce a second, cut-sho
 | R26-11 | Medium | The summary could load about 1 GB of text into memory | Only the part the parser reads is fetched |
 | R26-12 | Low | Unsigned amounts without a running balance were all counted as money in, and the page didn't say so | Amounts under a Withdrawals or Debits heading are money out; the page says plainly that otherwise an unsigned amount counts as money in |
 
+## Twenty-seventh review — Phase 10 part 2a (Stripe, the 7-day / 1 seat / 1 Matter trial, the 30-day deletion date)
+
+**Result:** customer matching across firms, refusing unknown prices, fetching Stripe's current state instead of trusting the notification, the webhook login's narrow rights, sending people only to Stripe's pages, Stripe id checks (no server-side request forgery), the locking behind the seat and Matter limits, and the signature check all held. The reviewer confirmed 1 High, 2 Medium and 2 Low problems with working tests. **All fixed**, in `db/migrations/0033_review27.sql` and the webhook route; regression tests in `test/security-review-27.test.ts` (5 tests), with more in `test/stripe.test.ts`.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R27-1 | High | Subscribing during the trial lifted the 1-seat / 1-Matter limits at once, though Stripe charges nothing until the trial ends and the firm could cancel first: unlimited Matters, seats, storage and AI without paying | A `trialing` subscription is recorded, but the firm stays on the trial, with its limits, until Stripe reports the first payment (`active`). Cancelling during the trial leaves the trial's own end date in charge, and the firm can subscribe again |
+| R27-2 | Medium | A failed renewal (`past_due`) moved the paid-through date to the end of the unpaid period, so the 7 days' grace never ran out | Only a paid (`active`) subscription moves the paid-through date forward |
+| R27-3 | Medium | When Huis set a firm's plan by hand after its Stripe subscription ended, the ended state stayed: a paying firm was still paused and shown a deletion date (and part 2b would have deleted it) | Huis setting a plan by hand clears the Stripe subscription state; Stripe can end access only for the firm's current Stripe subscription |
+| R27-4 | Low | Clients and other outside users could read the firm's Stripe status, access end date, paid-through date and Stripe customer straight from `huis.firms` | The app may read only the firm's non-billing columns; billing state goes through functions that check the person's role |
+| R27-5 | Low–Medium | The webhook read the whole body into memory before checking its size (a chunked request of any size, no signature needed) | The body is read a piece at a time and refused past 512 KB |
+
+Also closed (raised as unconfirmed): a second subscription completed while the first is live no longer replaces it (double checkout); an abandoned checkout (`incomplete_expired`) never ends access. Still open from this review: promotion codes (checkout accepts every active code in the Stripe account, so keep only intended codes active); a wrong or rotated Stripe key makes every notification fail, and Stripe disables the endpoint after a few days of failures, so Stripe's webhook failure emails must go to someone who acts on them.
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — Microsoft sign-in doesn't yet require proof of MFA. Plan: require the firm's Microsoft MFA (Conditional Access) or a Huis passkey. Part of the end-of-build Azure/hosting step.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.
