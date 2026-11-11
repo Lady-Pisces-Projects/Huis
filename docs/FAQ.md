@@ -269,17 +269,26 @@ Yes, and no. Connect your own Google account, then use **Choose files in Google 
 ### What about Google Drive, Filevine, Clio and StrongSuit?
 Google Drive comes next: first with Google's own file picker (Huis can only open the files you pick), then full browsing once Google's security assessment is done. Filevine and Clio need developer access from those companies, and StrongSuit (which supports an API connection and a user-interface merger) is being discussed with them. The Integrations page shows where each stands.
 
-### What happens when our free trial ends?
-Nothing is deleted or hidden. Everyone can still sign in, open every Matter and document, and export a whole Matter: your firm owns its data. Adding new work (new Matters, evidence, AI questions, imports and people) pauses until the firm subscribes, and it starts again the moment it does. The same applies if a payment is more than 7 days late.
+### How long is the free trial, and what does it include?
+7 days, with no card needed. The trial includes 1 seat (the person who signs up), 1 Matter, 2 GB of evidence and 100 AI questions, so you can see Huis work on a real case. Clients, co-counsel and experts you invite don't take a seat.
+
+### How do we pay?
+On the **Subscription** page, choose **Monthly** ($237 per seat per month) or **Yearly** ($2,370 per seat per year, two months free). You pay on Stripe's secure checkout page; Huis never sees your card number. Founding-member codes are entered on that page. If you subscribe while the trial still has more than 2 days left, billing starts when the trial ends. **Manage billing** opens Stripe's portal, where you can update the card, see invoices, switch between monthly and yearly, or cancel.
+
+### How many seats are we billed for?
+Your active attorneys and staff, automatically. When you add someone, remove someone or change their role, the number of seats billed follows, and Stripe adjusts the charge for the part of the period left.
+
+### What happens when our free trial ends, or we stop subscribing?
+Adding new work (new Matters, evidence, AI questions, imports and people) pauses straight away. For **30 days** everyone can still sign in, open every Matter and document, and export a whole Matter. Firm staff see the date the firm's files will be deleted. **After those 30 days, the firm's files and data are permanently deleted.** Subscribing at any point before then restores everything at once. If a card payment fails, Stripe retries it, and work carries on for 7 days' grace first.
 
 ### Do clients, co-counsel and experts need a paid seat?
 No. Seats are for attorneys and firm staff. People outside the firm you add to a Matter don't take one.
 
 ### Where can I see our plan and usage?
-Owners, managing partners, administrators and billing administrators have a **Subscription** page: the plan, trial days left or paid-through date, the monthly amount, and how many seats, how much storage and how many AI questions this month are in use. To subscribe or add seats, contact Huis; online payment is coming.
+Owners, managing partners, administrators and billing administrators have a **Subscription** page: the plan, trial days left or renewal date, and how many seats, Matters, how much storage and how many AI questions this month are in use. They subscribe and manage billing there too.
 
-### Why can't I upload a large file on the trial?
-The trial includes 2 GB of evidence and 100 AI questions a month, so nobody can load a whole discovery set for free. A file that wouldn't fit is refused before it's sent. Subscribing removes the limit.
+### Why can't I upload a large file, or open a second Matter, on the trial?
+The trial includes 1 Matter, 2 GB of evidence and 100 AI questions, so nobody can load a whole discovery set for free. A file that wouldn't fit is refused before it's sent. Subscribing removes these limits.
 
 ### Can we keep time and send invoices in Huis?
 Yes. Record time and expenses on each Matter's **Billing** page; time is billed in tenths of an hour at the rate in force that day. Billing staff or the Matter's lead attorney turn unbilled work into a draft invoice, check it, and issue it; the client then sees it on their portal. Issued invoices never change: to correct one, void it and issue a new one.

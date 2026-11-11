@@ -70,7 +70,7 @@ describe("seats", () => {
     const x = await setup(); // owner + paralegal + billing admin = 3 of 3 trial seats
     const invite = (role: string, n: string) => db.withFirm(x.owner, (s) =>
       inviteUser(s, { email: `${n}@${x.slug}.example`, fullName: `Person ${n}`, role: role as never, locationId: x.locationId }));
-    await expect(invite("attorney", "a4")).rejects.toThrow(/All 3 of the firm's seats are in use/);
+    await expect(invite("attorney", "a4")).rejects.toThrow(/free trial includes 3 seats/);
     await expect(invite("attorney", "a4")).rejects.toBeInstanceOf(UserFacingError);
     // Outside people never take a seat.
     await invite("client", "c1");
@@ -81,7 +81,7 @@ describe("seats", () => {
     await invite("attorney", "a5");
     // Turning a disabled license back on directly can't get round the limit (the database checks it).
     await expect(db.withFirm(x.owner, (s) => s.client.query(
-      "UPDATE huis.licenses SET status = 'active', ends_at = NULL WHERE user_id = $1", [x.billing.id]))).rejects.toThrow(/seats are in use/);
+      "UPDATE huis.licenses SET status = 'active', ends_at = NULL WHERE user_id = $1", [x.billing.id]))).rejects.toThrow(/free trial includes 3 seats/);
     const sub = await db.withFirm(x.owner, (s) => getSubscription(s));
     expect(sub.seats).toEqual({ used: 3, limit: 3 });
     expect(sub.externalUsers).toBe(3);
