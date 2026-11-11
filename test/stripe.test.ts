@@ -102,6 +102,8 @@ describe("the trial: 7 days, 1 seat, 1 Matter", () => {
     const sub = await db.withFirm(f.owner, (s) => getSubscription(s));
     expect(sub.matters).toEqual({ used: 1, limit: 1 });
     expect(sub.seats).toEqual({ used: 1, limit: 1 });
+    // The Subscription page offers Professional's prices, not the trial's $0.
+    expect(sub.subscribePrices).toEqual({ monthCents: 23700, yearCents: 237000 });
   });
 });
 

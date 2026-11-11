@@ -37,8 +37,9 @@ export default async function SubscriptionPage({ searchParams }: { searchParams:
     </div>
   );
   const seatsBilled = Math.max(1, sub.seats.used);
-  const monthly = sub.pricePerSeatCents ?? 23700;
-  const yearly = sub.pricePerSeatYearCents ?? 237000;
+  // What subscribing costs comes from the Professional plan (on the trial, the firm's own plan price is $0).
+  const monthly = sub.subscribePrices.monthCents ?? 23700;
+  const yearly = sub.subscribePrices.yearCents ?? 237000;
 
   return (
     <>

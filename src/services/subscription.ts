@@ -20,6 +20,8 @@ export interface FirmSubscription {
   billingInterval: "month" | "year" | null;
   /** Stripe's word for the subscription (active, past_due, canceled…); null when not subscribed through Stripe. */
   stripeStatus: string | null;
+  /** What subscribing costs (the Professional plan), per seat, in cents. */
+  subscribePrices: { monthCents: number | null; yearCents: number | null };
   /** The firm has a Stripe customer, so the customer portal can open. */
   hasBillingAccount: boolean;
   trialEndsAt: Date | null;
@@ -44,6 +46,8 @@ export interface FirmSubscription {
 export async function getSubscription(s: FirmSession): Promise<FirmSubscription> {
   assertCan(s.actor.role, "licenses.view");
   const r = (await s.client.query("SELECT * FROM huis.my_firm_subscription()")).rows[0]!;
+  const pro = (await s.client.query<{ m: number | null; y: number | null }>(
+    "SELECT price_cents_per_seat AS m, price_cents_per_seat_year AS y FROM huis.plans WHERE code = 'professional'")).rows[0];
   const seatsUsed = Number(r.seats_used);
   const seatLimit = r.seat_limit === null ? null : Number(r.seat_limit);
   const price = r.price_cents_per_seat === null ? null : Number(r.price_cents_per_seat);
@@ -54,6 +58,7 @@ export async function getSubscription(s: FirmSession): Promise<FirmSubscription>
     billingInterval: r.billing_interval ?? null,
     stripeStatus: r.stripe_status ?? null,
     hasBillingAccount: Boolean(r.has_billing_account),
+    subscribePrices: { monthCents: pro?.m == null ? null : Number(pro.m), yearCents: pro?.y == null ? null : Number(pro.y) },
     matters: { used: Number(r.matters_used), limit: r.matter_limit === null ? null : Number(r.matter_limit) },
     accessEndedAt: r.access_ended_at ? new Date(r.access_ended_at) : null,
     deleteAfter: r.delete_after ? new Date(r.delete_after) : null,
