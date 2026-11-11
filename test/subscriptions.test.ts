@@ -127,11 +127,11 @@ describe("trial limits", () => {
     expect(sub.storage).toEqual({ usedBytes: 900, limitBytes: 1000 });
   });
 
-  it("AI questions: the month's allowance, counted across the firm", async () => {
+  it("AI questions: the trial's allowance, counted across the firm", async () => {
     const x = await setup();
     await db.withFirm(x.owner, (s) => askMatter(s, x.matter.id, "What happened first?"));
     await db.withFirm(x.paraCtx, (s) => askMatter(s, x.matter.id, "Who is the witness?"));
-    await expect(db.withFirm(x.owner, (s) => askMatter(s, x.matter.id, "One more?"))).rejects.toThrow(/this month's 2 AI questions/);
+    await expect(db.withFirm(x.owner, (s) => askMatter(s, x.matter.id, "One more?"))).rejects.toThrow(/free trial includes 2 AI questions/);
     expect((await db.withFirm(x.owner, (s) => getSubscription(s))).aiQuestions).toEqual({ usedThisMonth: 2, limitPerMonth: 2 });
   });
 });

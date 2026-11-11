@@ -67,8 +67,8 @@ MFA and passkeys; SSO/SAML for enterprise; RBAC down to firm → location → ma
 | 31 | Integrations | All on the list (order adjusted in §5) |
 | 32 | StrongSuit | StrongSuit supports an **API connection and a user-interface merger** with Huis. Plan for a two-way integration through an adapter (Phase 7 research, Phase 9 Integration Hub), with the merged interface in scope; Huis still works without it (never a dependency) |
 | 33 | StrongSuit contact | Tracy is holding discussions with StrongSuit about the API connection and interface merger |
-| 34–36 | Pricing | Combination model; **$237/user/month** or **$2,370/user/year** (two months free); enterprise pricing for firms; **7-day free trial, no card** (11 Nov 2026: **1 seat, 1 Matter**, 2 GB, 100 AI questions); self-serve: explainer video → trial → subscribe, no demo calls; payment through **Stripe** (10 Nov 2026) |
-| 37–38 | Data ownership | Firm owns its data; full export any time. When access ends (trial unpaid or subscription ended), **read and export only for 30 days, then the firm's data is deleted** (10 Nov 2026) |
+| 34–36 | Pricing | Combination model; **$237/user/month** or **$2,370/user/year** (two months free); enterprise pricing for firms; **7-day free trial, no card** (11 Nov 2026: **1 seat, 1 Matter**, 2 GB, **100 AI questions for the whole trial**; automatic work never counts); self-serve: explainer video → trial → subscribe, no demo calls; payment through **Stripe** (10 Nov 2026) |
+| 37–38 | Data ownership | Firm owns its data; full export any time. A **trial that ends unpaid**: read and export only for 30 days, then deleted. A firm that **has paid is never deleted** for non-payment: its Matters are held, read and export only, until it subscribes again (11 Nov 2026; terms of service and privacy policy to say so) |
 | — | Case DNA™ | Yes: relationship graph of people, events, evidence, claims, elements, law, damages |
 | — | Phase 11 | Yes: Case Outcome Intelligence™ premium add-on |
 

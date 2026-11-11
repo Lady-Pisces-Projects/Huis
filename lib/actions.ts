@@ -38,6 +38,7 @@ import { act, db, getPending, getSession, setFlash, setSessionCookie, userMessag
 import { syncSeatsAfterPeopleChange } from "./billing";
 import { stripeConfig } from "../src/billing/stripe";
 import { openPortal, startCheckout } from "../src/services/stripe-billing";
+import { saveCaseDescription } from "../src/services/caseDescription";
 
 const text = (fd: FormData, key: string) => {
   const v = fd.get(key);
@@ -123,7 +124,12 @@ export async function createMatterAction(fd: FormData): Promise<void> {
       practiceArea: text(fd, "practiceArea"),
       restricted: fd.get("restricted") === "on",
     });
-    return { redirectTo: `/matters/${m.id}`, message: `Matter ${m.huisNumber} created.` };
+    // Phase 10 part 2a: the case description, read automatically (never counts as an AI question).
+    const d = await saveCaseDescription(s, m.id, typeof fd.get("description") === "string" ? String(fd.get("description")) : undefined);
+    const extra = d === null ? ""
+      : d.suggested > 0 ? ` Huis read the case description and suggested ${d.suggested} item${d.suggested === 1 ? "" : "s"} (people, dates and possible claims) to confirm in Case DNA.`
+      : " The case description is saved as the Matter's first note.";
+    return { redirectTo: d && d.suggested > 0 ? `/matters/${m.id}/dna` : `/matters/${m.id}`, message: `Matter ${m.huisNumber} created.${extra}` };
   }));
 }
 

@@ -47,6 +47,12 @@ export default async function NewMatter({ searchParams }: { searchParams: Promis
             <label>Court case number (optional — add it later if not assigned yet)<input name="courtCaseNumber" maxLength={100} /></label>
             <label>Your firm&apos;s own matter number (optional)<input name="firmMatterNumber" maxLength={100} /></label>
             <label>Practice area<input name="practiceArea" maxLength={100} placeholder="e.g. Employment" /></label>
+            <label>What is this case about? (optional)
+              <textarea name="description" rows={6} maxLength={5000}
+                placeholder="e.g. Our client, Maria Lopez, was fired by Acme Trucking, Inc. on March 3, 2026, two weeks after returning from FMLA leave. Her supervisor, Mr. Dale Hunt, had complained about her absences." />
+              <span className="notice">Huis reads this as soon as you create the Matter and suggests the people, organizations, key dates and possible claims for you to confirm in Case DNA.
+                It&apos;s saved as the Matter&apos;s first note. This is automatic and doesn&apos;t use any of your AI questions.</span>
+            </label>
             <label className="check">
               <input type="checkbox" name="restricted" />
               <span><strong>Ethical wall.</strong> Only people explicitly added to this matter can see it — including firm administrators.</span>

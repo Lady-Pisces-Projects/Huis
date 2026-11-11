@@ -298,8 +298,8 @@ describe("seats billed follow the firm's staff", () => {
   });
 });
 
-describe("when access ends: read and export for 30 days, then deletion", () => {
-  it("a cancelled subscription pauses new work at once and shows the deletion date to firm staff", async () => {
+describe("when access ends: an unpaid trial is deleted after 30 days; a firm that paid is held", () => {
+  it("a cancelled subscription pauses new work at once; the firm paid, so its cases are held (no deletion date)", async () => {
     const f = await subscribedFirm();
     stripe.subscriptions[f.sub.id]!.status = "canceled";
     expect((await send("customer.subscription.deleted", { id: f.sub.id })).outcome).toBe("applied");
@@ -312,8 +312,12 @@ describe("when access ends: read and export for 30 days, then deletion", () => {
     // Reading still works.
     expect(await db.withFirm(f.owner, (s) => listMatters(s))).toHaveLength(1);
     const sub = await db.withFirm(f.owner, (s) => getSubscription(s));
-    expect(sub.deleteAfter!.getTime() - (row.access_ended_at as Date).getTime()).toBe(30 * DAY);
+    expect(sub.deleteAfter).toBeNull();
+    expect(row.first_paid_at).not.toBeNull();
     expect(await db.withFirm(f.owner, (s) => pausedReason(s))).toMatch(/subscription has ended/);
+    // Long after, still no deletion date.
+    await asHuis("UPDATE huis.firms SET access_ended_at = now() - interval '400 days' WHERE id = $1", [f.firmId]);
+    expect((await db.withFirm(f.owner, (s) => getSubscription(s))).deleteAfter).toBeNull();
 
     // Outside users never learn the firm's standing or the date.
     const portal = await db.withFirm(f.owner, (s) => inviteUser(s, { email: `c@${f.slug}.example`, fullName: "Casey Client", role: "client", locationId: f.locationId }));

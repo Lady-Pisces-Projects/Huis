@@ -53,8 +53,8 @@ export default async function SubscriptionPage({ searchParams }: { searchParams:
       {sub.deleteAfter ? (
         <div className="card" style={{ borderColor: "#b42318" }}>
           <h2>Your files will be deleted on {date(sub.deleteAfter)}</h2>
-          <p>The firm&apos;s access ended on {date(sub.accessEndedAt!)}. Until {date(sub.deleteAfter)}, everyone can still sign in, open and
-            export every Matter. After that date the firm&apos;s files and data are permanently deleted. Subscribing before then keeps everything.</p>
+          <p>The free trial ended on {date(sub.accessEndedAt!)} without a subscription. Until {date(sub.deleteAfter)}, everyone can still sign in,
+            open and export every Matter. After that date the firm&apos;s files and data are permanently deleted. Subscribing before then keeps everything.</p>
         </div>
       ) : null}
 
@@ -63,7 +63,7 @@ export default async function SubscriptionPage({ searchParams }: { searchParams:
         {sub.plan === "trial" ? (
           <p>{sub.trialDaysLeft ? <>Free trial: <strong>{sub.trialDaysLeft} day{sub.trialDaysLeft === 1 ? "" : "s"}</strong> left</> : "The free trial has ended"}
             {sub.trialEndsAt ? <span className="notice"> · ends {date(sub.trialEndsAt)}</span> : null}.
-            {" "}The trial includes 1 seat and 1 Matter, with the limits shown below. No card is needed.</p>
+            {" "}The trial includes 1 seat, 1 Matter, 2 GB of evidence and 100 AI questions. No card is needed.</p>
         ) : (
           <p>
             {sub.billingInterval === "year"
@@ -105,16 +105,22 @@ export default async function SubscriptionPage({ searchParams }: { searchParams:
         {meter("Matters", String(sub.matters.used), sub.matters.limit === null ? null : String(sub.matters.limit), pct(sub.matters.used, sub.matters.limit))}
         {meter("Evidence stored", formatBytes(sub.storage.usedBytes), sub.storage.limitBytes === null ? null : formatBytes(sub.storage.limitBytes),
           pct(sub.storage.usedBytes, sub.storage.limitBytes))}
-        {meter("AI questions this month", String(sub.aiQuestions.usedThisMonth), sub.aiQuestions.limitPerMonth === null ? null : String(sub.aiQuestions.limitPerMonth),
-          pct(sub.aiQuestions.usedThisMonth, sub.aiQuestions.limitPerMonth), "Matter Brain and agent questions, counted by calendar month (UTC).")}
+        {meter(sub.plan === "trial" ? "AI questions during the trial" : "AI questions this month", String(sub.aiQuestions.usedThisMonth),
+          sub.aiQuestions.limitPerMonth === null ? null : String(sub.aiQuestions.limitPerMonth),
+          pct(sub.aiQuestions.usedThisMonth, sub.aiQuestions.limitPerMonth),
+          "A question is one you type to Matter Brain or an AI agent. Everything Huis does by itself is free and unlimited: reading and searching files, the timeline, Case DNA suggestions, reading your case description, and analysis.")}
       </div>
 
       <div className="card">
-        <h2>If the trial ends or the subscription stops</h2>
+        <h2>If the trial ends, or the subscription stops</h2>
         <p className="notice">
-          Adding new work (Matters, evidence, AI questions, imports and people) pauses. For 30 days everyone can still sign in, open Matters and
-          evidence, and export a whole Matter. After those 30 days the firm&apos;s files and data are permanently deleted. A late card payment
-          has 7 days&apos; grace while Stripe retries it. Manage people on <Link href="/users">Users &amp; Access</Link>.
+          <strong>If the free trial ends without subscribing:</strong> adding new work pauses, and for 30 days everyone can still sign in, open
+          and export everything. After those 30 days the firm&apos;s files and data are permanently deleted.
+        </p>
+        <p className="notice">
+          <strong>Once your firm has subscribed, Huis never deletes its cases for non-payment.</strong> If the subscription stops, adding new work
+          pauses, and your Matters and information are kept, ready to open and export, until you subscribe again. A late card payment has
+          7 days&apos; grace while Stripe retries it. Manage people on <Link href="/users">Users &amp; Access</Link>.
         </p>
       </div>
     </>
