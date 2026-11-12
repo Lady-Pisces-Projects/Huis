@@ -49,6 +49,9 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   await runMigrations(adminUrl);
 
   const admin = new pg.Pool({ connectionString: adminUrl, max: 2 });
+  // Test firms start on the trial; its limits (Phase 10) are lifted here so other tests aren't limited by them.
+  // test/subscriptions.test.ts puts them back to check them.
+  await admin.query("UPDATE huis.plans SET seat_limit = NULL, storage_limit_bytes = NULL, ai_questions_per_month = NULL WHERE code = 'trial'");
   await admin.query(`CREATE ROLE ${appUser} LOGIN PASSWORD '${appPassword}' NOSUPERUSER NOBYPASSRLS IN ROLE huis_app`);
 
   const db = HuisDb.fromUrl(withCredentials(adminUrl, appUser, appPassword));

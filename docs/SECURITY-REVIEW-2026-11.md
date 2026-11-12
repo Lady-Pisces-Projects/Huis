@@ -402,7 +402,55 @@ Also fixed while reviewing: overlapping passages could produce a second, cut-sho
 | Note | Info | A few sign-in calls still used plain requests or read answers whole; API answers that trickle in had no overall deadline | Sign-in calls use the time limits and size caps; API answers (not file downloads) also have an overall deadline (5 minutes by default) |
 | Note | Info | A worker started before the database update would have refused every import | A missing chosen version is treated as "not recorded", never as "changed" |
 
+## Twenty-fourth review — Phase 10 part 1 (subscriptions, the trial, seats and usage)
+
+**Result:** nothing High. The reviewer found no way to take more seats than the firm has (including two people added at once, turning a license back on, or other license paths), no way for one firm to read another's account, and reading, export, Matter Brain indexing and court reminders all keep working when new work is paused. The reviewer confirmed 4 Medium and 3 Low problems. **All fixed**, in `db/migrations/0029_review24.sql` and the app and worker, with regression tests in `test/security-review-24.test.ts` (8 tests; the first 7 fail against the code as reviewed).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R24-1 | Medium | The trial's storage limit counted only what was uploaded: an archive under 2 GB could unpack to many times that | Unpacked files count too; unpacking keeps what fits and says the trial's storage limit was reached |
+| R24-2 | Medium | Clients and other outside users were told the firm's billing standing ("payment is overdue") | Outside users get a neutral "adding new documents is paused, contact your law firm"; the firm-wide notice is for firm staff only |
+| R24-3 | Medium | A suspended firm couldn't sign in at all, though Huis promises it can still read and export | Suspended firms sign in with new work paused; "disabled" is still a full lock-out |
+| R24-4 | Medium | A working copy asked for before the trial ended failed (five tries) once it had; queued mail filings and imports also retried pointlessly | Copies of evidence already held finish (their storage still counts); anything the subscription refuses fails at once with its reason instead of retrying |
+| R24-5 | Low | The subscription summary let a caller with no role through (not reachable from the app) | Fails closed |
+| R24-6 | Low | The operator command accepted impossible dates (31 February became 3 March) and was an hour off in summer | Impossible dates refused; the end of the day in Utah, summer time included |
+| R24-7 | Low | The AI-question limit was checked only after the AI work was done | Checked first; the database checks again when the question is saved |
+
+## Twenty-fifth review — Phase 10 part 3 (firm billing)
+
+**Result:** nothing High. Locked items couldn't be changed directly, issued invoices couldn't be edited or deleted, numbering held under concurrent issues (no duplicates, no gaps on rollback), clients never saw drafts, time sheets, expenses or rates, walls and other firms were kept out, and billing can't be used to get around the subscription pause. The reviewer confirmed 1 Medium–High, 1 Medium and 4 Low problems. **All fixed**, in `db/migrations/0031_review25.sql` and the service and pages, with regression tests in `test/security-review-25.test.ts` (6 tests; all failed against the code as reviewed).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R25-1 | Medium–High | An item taken off (or changed on, or added to) a draft while that draft was being issued could be billed and stay unbilled too, or stay locked with content different from what was billed | Changes to an item wait for an issue in progress and are refused once it's issued; issuing holds its items while it copies them |
+| R25-2 | Medium | A timekeeper could undo a billing manager's write-down on their own time (changing the rate or the date brought back the standard rate) | Only billing staff change an entry's rate; a date change keeps it |
+| R25-3 | Low–Medium | A lead attorney (not billing staff) editing a colleague's time wiped its rate to $0 | Same fix: the rate stays as it was |
+| R25-4 | Low | A draft whose items were all made non-billable was issued as a numbered $0 invoice with no lines | Non-billable items leave the draft when it's issued; an invoice with nothing billable isn't issued |
+| R25-5 | Low | Colleagues' rates (hidden in the rate table) could be read from the rate copied onto each time entry | The app can't read that column: rates come from a function that gives only your own, unless you're billing staff or invoice the Matter. Others see a dash; Matter totals come from a total-only function |
+| R25-6 | Low | A timekeeper who can't invoice could move their own items on and off drafts | Only those who invoice the Matter change what's on an invoice |
+
+**Noted for later:** invoice and payment dates are checked against the server's date, not the firm's time zone (an evening invoice can default to tomorrow's date in Utah); time and expense dates have no limits; time with no rate is billed at $0 with a warning on the page only.
+
+## Twenty-sixth review — Phase 10 part 4 (financial evidence analysis)
+
+**Result:** no access leaks: clients and outside users, walls and other firms were kept out, and row-level security on document text follows the evidence exactly. The reviewer confirmed 1 High, 2 Medium–High/Medium performance problems, 6 parsing problems and 3 more by reading. **All fixed**, in `src/finance/analyze.ts` and `src/services/finance.ts`, with regression tests in `test/security-review-26.test.ts` (12 tests; all failed against the code as reviewed).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R26-1 | High | One uploaded file with a long run of digits made the amount pattern backtrack: seconds to minutes per view, close to an hour at the size limit, stalling the server each time the Matter's analysis was opened (a client could upload such a file) | The amount pattern is bounded on both sides (linear on any input), and lines longer than 4,000 characters aren't read |
+| R26-2 | Medium–High | The duplicate rule compared each transaction with every earlier one within 3 days (5 seconds for a busy 5,000-line ledger, per document) | Matched through a map by amount, with each date's day worked out once |
+| R26-3 | Medium | Whole-number spreadsheet amounts had no limit (Infinity, NaN, inexact totals) | Bounded like other amounts ($1 billion); the Matter summary says when totals are too large to add up exactly |
+| R26-4 | Medium | Dates without a year got the wrong one: a December–January statement put January in the earlier year (with a false gap), "since 2009" in a footer set the year, and "99" became 2099 | The year comes from the statement period line only, across a year end; two-digit years 70–99 are the 1900s |
+| R26-5 | Medium | European and other number formats were read as wrong amounts with no warning (1.234,56 as $1.23; 192.168.1.1 as $192.16), and day-first dates as month-first | Such numbers aren't read as amounts; a document with comma-decimal amounts says Huis can't read that format yet; a document whose dates can only be day-first is read day-first |
+| R26-6 | Medium | A line of prose like "Date, amount and balance are shown below" switched a statement into spreadsheet mode and dropped the rest | A spreadsheet header is only looked for before the first transaction, and must be a real header row |
+| R26-7 | Low–Medium | " - " inside a description was read as a minus sign, beating the running balance (false flags) | A minus sign must touch the number |
+| R26-8 | Low–Medium | "Daily ending balance" lines (a date and a balance) were counted as deposits | Lines in a daily balance section aren't transactions |
+| R26-9 | Low–Medium | A document's analysis could show the text of an item no longer clean (a container found to hold a threat) | Only clean items |
+| R26-10 | Low | A document opened under another Matter's address recorded a view before showing "not found" | The Matter is checked before the text is read |
+| R26-11 | Medium | The summary could load about 1 GB of text into memory | Only the part the parser reads is fetched |
+| R26-12 | Low | Unsigned amounts without a running balance were all counted as money in, and the page didn't say so | Amounts under a Withdrawals or Debits heading are money out; the page says plainly that otherwise an unsigned amount counts as money in |
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — Microsoft sign-in doesn't yet require proof of MFA. Plan: require the firm's Microsoft MFA (Conditional Access) or a Huis passkey. Part of the end-of-build Azure/hosting step.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.
-3. **License limits** — admins can add licenses freely until billing (Phase 10) enforces seat counts.
+3. ~~**License limits**~~ — seat counts are enforced by the database since Phase 10 part 1 (review 24).

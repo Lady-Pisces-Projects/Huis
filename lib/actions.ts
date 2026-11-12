@@ -28,6 +28,10 @@ import {
 import { addCourtEvent, addNoticeSender, decideCourtEvent, deleteCourtEvent, removeNoticeSender, setCourtEventDone, updateCourtEvent } from "../src/services/court";
 import { markAlertsRead, setAlertPreferences } from "../src/services/alerts";
 import { browse, disconnectIntegration, importFiles } from "../src/services/integrations";
+import {
+  addExpense, addTime, createDraftInvoice, deleteDraftInvoice, deleteExpense, deleteTime, issueInvoice, recordPayment, removeFromDraft,
+  removeRate, setRate, updateDraftNotes, voidInvoice,
+} from "../src/services/billing";
 import { ROLES } from "../src/security/permissions";
 import { UserFacingError } from "../src/errors";
 import { act, db, getPending, setSessionCookie, withSession } from "./server";
@@ -615,3 +619,76 @@ export async function integrationDisconnectAction(fd: FormData): Promise<void> {
   return act("/integrations", "Disconnected. Huis no longer holds a sign-in for that account; files already imported stay in their Matters.",
     () => withSession(async (s) => { await disconnectIntegration(s, id); }));
 }
+
+// ---------------------------------------------------------------------------
+// Firm billing (Phase 10 part 3)
+// ---------------------------------------------------------------------------
+const matterBillingPath = (fd: FormData) => `/matters/${encodeURIComponent(text(fd, "matterId") ?? "")}/billing`;
+const invoicePath = (fd: FormData) => `${matterBillingPath(fd)}/invoices/${encodeURIComponent(text(fd, "invoiceId") ?? "")}`;
+
+export async function addTimeAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Time recorded.", () => withSession(async (s) => {
+    await addTime(s, text(fd, "matterId") ?? "", {
+      workDate: text(fd, "workDate"), duration: text(fd, "duration") ?? "", description: text(fd, "description") ?? "",
+      billable: fd.get("billable") === "on", userId: text(fd, "userId"), rate: text(fd, "rate"),
+    });
+  }));
+}
+export async function deleteTimeAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Time removed.", () => withSession(async (s) => { await deleteTime(s, text(fd, "entryId") ?? ""); }));
+}
+export async function addExpenseAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Expense recorded.", () => withSession(async (s) => {
+    await addExpense(s, text(fd, "matterId") ?? "", {
+      incurredOn: text(fd, "incurredOn"), description: text(fd, "description") ?? "", amount: text(fd, "amount") ?? "", billable: fd.get("billable") === "on",
+    });
+  }));
+}
+export async function deleteExpenseAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Expense removed.", () => withSession(async (s) => { await deleteExpense(s, text(fd, "expenseId") ?? ""); }));
+}
+export async function createDraftInvoiceAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Draft invoice created. Check it, then issue it.", () => withSession(async (s) => {
+    const id = await createDraftInvoice(s, text(fd, "matterId") ?? "", text(fd, "through") ?? null);
+    return { redirectTo: `${matterBillingPath(fd)}/invoices/${id}` };
+  }));
+}
+export async function updateDraftNotesAction(fd: FormData): Promise<void> {
+  return act(invoicePath(fd), "Saved.", () => withSession(async (s) => { await updateDraftNotes(s, text(fd, "invoiceId") ?? "", fd.get("notes") ?? ""); }));
+}
+export async function removeFromDraftAction(fd: FormData): Promise<void> {
+  const kind = fd.get("kind") === "expense" ? "expense" : "time";
+  return act(invoicePath(fd), "Taken off this invoice (back to unbilled).", () => withSession(async (s) => { await removeFromDraft(s, kind, text(fd, "itemId") ?? ""); }));
+}
+export async function deleteDraftInvoiceAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Draft deleted; its items are unbilled again.", () => withSession(async (s) => { await deleteDraftInvoice(s, text(fd, "invoiceId") ?? ""); }));
+}
+export async function issueInvoiceAction(fd: FormData): Promise<void> {
+  return act(invoicePath(fd), "Issued.", () => withSession(async (s) => {
+    const n = await issueInvoice(s, text(fd, "invoiceId") ?? "", { issuedOn: text(fd, "issuedOn"), dueOn: text(fd, "dueOn") });
+    return { message: `Issued as ${n}. Its lines and total won't change; the client can see it on their portal.` };
+  }));
+}
+export async function voidInvoiceAction(fd: FormData): Promise<void> {
+  if (fd.get("confirm") !== "on") {
+    return act(invoicePath(fd), "", async () => { throw new UserFacingError("Tick the box to confirm voiding this invoice."); });
+  }
+  return act(invoicePath(fd), "Voided. Its items are unbilled again.", () => withSession(async (s) => { await voidInvoice(s, text(fd, "invoiceId") ?? ""); }));
+}
+export async function recordPaymentAction(fd: FormData): Promise<void> {
+  return act(invoicePath(fd), "Payment recorded.", () => withSession(async (s) => {
+    const st = await recordPayment(s, text(fd, "invoiceId") ?? "", {
+      amount: text(fd, "amount") ?? "", receivedOn: text(fd, "receivedOn"), method: text(fd, "method"), reference: text(fd, "reference") ?? "",
+    });
+    return { message: st === "paid" ? "Payment recorded. The invoice is paid in full." : "Payment recorded." };
+  }));
+}
+export async function setRateAction(fd: FormData): Promise<void> {
+  return act("/billing", "Rate saved. New time uses it from that date.", () => withSession(async (s) => {
+    await setRate(s, { userId: text(fd, "userId"), matterId: text(fd, "matterId") ?? null, rate: text(fd, "rate") ?? "", effectiveFrom: text(fd, "effectiveFrom") });
+  }));
+}
+export async function removeRateAction(fd: FormData): Promise<void> {
+  return act("/billing", "Rate removed.", () => withSession(async (s) => { await removeRate(s, text(fd, "rateId") ?? ""); }));
+}
+

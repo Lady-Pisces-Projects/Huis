@@ -32,7 +32,9 @@ interface ImportJob extends Held {
 }
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : "integration error").slice(0, 300);
-const flag = (e: unknown, k: "reconnect" | "final") => Boolean((e as Record<string, unknown> | null)?.[k]);
+const flag = (e: unknown, k: "reconnect" | "final") => Boolean((e as Record<string, unknown> | null)?.[k])
+  // The firm's subscription refused it (Phase 10, security review 24 R24-4): trying again won't help.
+  || (k === "final" && (e as { code?: string } | null)?.code === "HU402");
 
 /**
  * Lists folders and imports files for connected outside systems. Runs inside
