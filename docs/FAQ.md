@@ -46,7 +46,7 @@ Yes. Every download and every time someone reads a document's text is recorded i
 Yes, through the client portal, and only into the matter's **Client Uploads** folder. Clients see only what's in client-shared folders. They never see firm work product or the red privileged folder.
 
 ### How do people sign in?
-With their firm's Microsoft account, and only by invitation. Invitations are single-use and expire after 7 days. Accounts are never linked automatically by email address. Signing out ends the session on every device, and an administrator can end a user's sessions or disable them immediately.
+With their Microsoft or Google account. A new firm starts its 7-day trial at `/signup`; everyone else joins a firm by invitation, and the invitation page names the firm before they accept. Huis asks Microsoft or Google only for your name and email address. Invitations are single-use and expire after 7 days. Accounts are never linked automatically by email address. Signing out ends the session on every device, and an administrator can end a user's sessions or disable them immediately.
 
 ### Has Huis been independently security-tested?
 Yes, at every stage. After each part is built, a separate reviewer that did not write the code attacks it with working exploit attempts against a real database and real malicious files. The reviewer assumes an attacker already has access to the app's own database connection. Every confirmed issue is fixed, and each fix gets a permanent automated test so it can't quietly return. A part isn't released until the reviewer's own attacks no longer work.

@@ -40,12 +40,14 @@ export interface SessionPayload extends Record<string, unknown> {
   sessionVersion: number;
 }
 
-/** Sign-in in progress (between leaving for Microsoft and returning). */
+/** Sign-in in progress (between leaving for Microsoft or Google and returning). */
 export interface OAuthPayload extends Record<string, unknown> {
   state: string;
   nonce: string;
   verifier: string;
   invite?: string;
+  /** Which provider this sign-in was started with (absent on sign-ins from before Google: Microsoft). */
+  provider?: "microsoft" | "google";
 }
 
 /** Verified identity that has not yet picked or created a firm. */

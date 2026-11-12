@@ -479,6 +479,18 @@ Also closed (raised as unconfirmed): a second subscription completed while the f
 
 Still open from this review: a **100%-off promotion code** would make Stripe report a first "payment" of $0, so that firm would count as paid and never be deleted. Founding-member codes should be partial discounts, or Tracy decides whether a free code counts as paying.
 
+## Twenty-ninth review — Sign in with Google
+
+**Result:** no account takeover, account linking or cross-provider problem. Accounts are keyed on the provider and its account id, never the email; a sign-in started with one provider can't be finished at the other's callback; state, nonce and PKCE are sound; only `openid email profile` is requested and no refresh token is kept; no open redirects or token leaks; the Microsoft refactor behaves as before. The reviewer confirmed 2 Low problems with working tests, and raised one older Medium concern. **All fixed**; regression tests in `test/security-review-29.test.ts` (2 tests) and `test/google-signin.test.ts`.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R29-1 | Low | Google's authorized-party claim (`azp`) wasn't checked, so a token issued to another app with Huis among several audiences would pass (not exploitable today: tokens come straight from Google with the client secret, but it would be if this check were reused for tokens from a browser) | With several audiences `azp` is required; when present it must be Huis |
+| R29-2 | Low | A token without an expiry would be accepted (the library checks expiry only when present); Microsoft's check had the same gap | Expiry and issued-at are required for both providers; Google tokens must be under an hour old |
+| Concern 1 | Medium (older, widened by Google) | An invitation could be accepted through a direct link to the sign-in start address, skipping the invitation page, so someone could be sent a "sign in to Huis" link that joined their account to a firm they didn't recognise | The invitation page names the firm and the person invited (`huis.invitation_preview`), and accepting is a button on that page: a POST checked to come from Huis itself. A link carrying an invitation is ignored |
+
+Also fixed: a Google name longer than sign-up allows (200 characters) is trimmed, so onboarding doesn't fail on it. Still open from this review: **enforcing multi-factor sign-in** (the users table has `mfa_required`, but nothing checks it; personal Google accounts may have no organisation-managed MFA). Options: check the token's `amr` claim, or let a firm limit sign-in to its own Workspace or Microsoft 365 domain.
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — Microsoft sign-in doesn't yet require proof of MFA. Plan: require the firm's Microsoft MFA (Conditional Access) or a Huis passkey. Part of the end-of-build Azure/hosting step.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.

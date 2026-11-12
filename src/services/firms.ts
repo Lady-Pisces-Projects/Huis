@@ -86,3 +86,13 @@ export async function resolveIdentity(db: HuisDb, provider: string, subject: str
     return rows.map((r) => ({ firmId: r.firm_id, userId: r.user_id, firmName: r.firm_name, role: r.role }));
   });
 }
+
+/** What the invitation page may show before someone accepts: the firm, the person invited and their role. Null if the link isn't valid. */
+export async function previewInvitation(db: HuisDb, token: string): Promise<{ firmName: string; inviteeName: string; role: string } | null> {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+  return db.withoutFirm(async (client) => {
+    const r = (await client.query<{ firm_name: string | null; invitee_name: string; role: string }>(
+      "SELECT * FROM huis.invitation_preview($1)", [token])).rows[0];
+    return r?.firm_name ? { firmName: r.firm_name, inviteeName: r.invitee_name, role: r.role } : null;
+  });
+}
