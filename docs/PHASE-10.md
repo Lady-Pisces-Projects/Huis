@@ -11,7 +11,7 @@
 | 10.3 | **Firm billing**: timekeeping on Matters, rates, expenses, invoices to clients (trust/IOLTA money through a legal payment processor, O-10) | Review 25 done, fixes in |
 | 10.4 | **Financial evidence analysis**: reading bank statements, invoices and ledgers filed as evidence (totals, gaps, unusual entries) by fixed, explainable rules | Review 26 done, fixes in |
 | 10.5 | **White label** for large firms: the firm's name, logo and colours, its own address | After 10.4 |
-| 10.6 | **Huis admin portal**: firms, plans, seats and trials for Huis staff (replaces the operator command) | After 10.2 |
+| 10.6 | **Huis admin portal**: firms, plans, seats and trials for Huis staff (replaces the operator command) | Built and tested; security review 30 in progress |
 | 10.7 | **Production security audit** before launch | With production hosting (O-2) |
 
 ## Part 1 — Subscriptions and licensing
@@ -88,6 +88,27 @@ Decided by Tracy on 10–11 November 2026:
 **Trial rules and case description:** `test/trial-rules.test.ts` (11 tests): deletion only for an unpaid trial (not a running trial, not a firm that paid by agreement, not after moving a paid firm back to the trial; the app can't clear `first_paid_at`); the trial's AI questions counted across a month end with the plain message; the description finder (organizations, titled people, dates, claims in several practice areas, the 40 cap, nothing from plain text); a Matter's description saved as a note with cited suggestions and no AI question used; labels set by the database from the cited words, claims only from the fixed list, dates checked against their words, one reading per description, audited; only the author, at the firm, can have it read.
 
 **Tests:** `test/stripe.test.ts` (24 tests, against a stand-in for Stripe in `test/fake-stripe.ts`): the trial's seat and Matter limits (including three Matters created at once, and a direct insert); checkout (one customer per firm, monthly and yearly prices, the trial carried over or not, only Stripe's pages, who may subscribe, the customer never replaced); notifications (limits lifted and audited, duplicates, bad / changed / old signatures, Stripe's current state winning over the notification's copy, no cross-firm upgrade, unknown prices, unpaid checkouts, Stripe unreachable, unhandled events, the webhook login's narrow rights); seats billed following staff; access ending (cancelled subscription paused at once with the deletion date, outside users told nothing, resubscribing, an old subscription ending, an unpaid trial's date, no date while the firm has access); signature parsing.
+
+## Part 6 — Huis admin portal
+
+For Huis staff, at `/admin`: every firm's account, and the changes staff make day to day (extending a trial, suspending or restoring an account, a plan by agreement), without the command line.
+
+**The rule: account information only.** Staff see a firm's name, owner name and email, plan, trial and payment dates, Stripe status, first payment, deletion date, seats, Matter count, storage and AI question counts, and the account's history. **Never a Matter, document, evidence, email, note or client name.** The database enforces it: the portal's login (role `huis_platform`) has no rights on any table and can call only the `platform_*` functions in `db/migrations/0037_admin_portal.sql`, which return account fields and counts.
+
+| Area | What Huis does |
+|---|---|
+| Who is staff | `HUIS_STAFF` lists each staff member's sign-in identity (provider + account id, never an email) and name. Checked on every request, so removing someone ends their access at once. Staff sign in at `/admin/signin` with Microsoft or Google; that sign-in never opens, creates or joins a firm, and sets its own one-hour cookie. A firm's session cookie never opens the portal. |
+| Firms list | Search by firm name, address or owner email (`%` and `_` are plain characters); standing in one phrase (trial, trial subscribed, paying by Stripe or agreement, paused, suspended, deletion date). Up to 500, newest first. |
+| Firm page | The account fields and counts above, what the firm currently sees if its work is paused, and the account history (plan changes, Stripe billing, staff actions). |
+| Changes | **Trial end** (trial firms only, within 90 days). **Suspend / restore** (the plan and any Stripe subscription stay as they are). **Plan by agreement** (professional or enterprise, seats, paid-through date; refused while the firm pays through Stripe, so Huis never stops following a subscription Stripe still charges). Each needs a note, and is recorded with the staff member's name in the firm's own audit log and in `huis.platform_audit`, which can only be added to. Dates are the end of that day, Utah time. |
+
+### Before it can be used
+1. Create a database login in role `huis_platform` and set `HUIS_PLATFORM_DATABASE_URL`.
+2. Set `HUIS_STAFF` (e.g. `google:<your Google account id>=Tracy Peart`). Your account id is the identity Huis already uses for sign-in; Huis can show it once production hosting is set up.
+
+The operator command (`scripts/operator/set-subscription.ts`) stays for emergencies, with the database owner's connection.
+
+**Tests:** `test/admin-portal.test.ts` (9 tests): the staff list (by identity, never email); the list and firm page carry no Matter titles or client names; the portal's login can't read any table or call the operator function; the app's login can't call the portal's functions; trial end, suspend/restore and plan by agreement, each with a required note and recorded; the Stripe guard; the staff log can only be added to.
 
 ## Part 3 — Firm billing (time, rates, expenses, invoices)
 
