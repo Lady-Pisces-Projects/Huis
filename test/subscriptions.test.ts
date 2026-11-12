@@ -70,7 +70,7 @@ describe("seats", () => {
     const x = await setup(); // owner + paralegal + billing admin = 3 of 3 trial seats
     const invite = (role: string, n: string) => db.withFirm(x.owner, (s) =>
       inviteUser(s, { email: `${n}@${x.slug}.example`, fullName: `Person ${n}`, role: role as never, locationId: x.locationId }));
-    await expect(invite("attorney", "a4")).rejects.toThrow(/All 3 of the firm's seats are in use/);
+    await expect(invite("attorney", "a4")).rejects.toThrow(/free trial includes 3 seats/);
     await expect(invite("attorney", "a4")).rejects.toBeInstanceOf(UserFacingError);
     // Outside people never take a seat.
     await invite("client", "c1");
@@ -81,7 +81,7 @@ describe("seats", () => {
     await invite("attorney", "a5");
     // Turning a disabled license back on directly can't get round the limit (the database checks it).
     await expect(db.withFirm(x.owner, (s) => s.client.query(
-      "UPDATE huis.licenses SET status = 'active', ends_at = NULL WHERE user_id = $1", [x.billing.id]))).rejects.toThrow(/seats are in use/);
+      "UPDATE huis.licenses SET status = 'active', ends_at = NULL WHERE user_id = $1", [x.billing.id]))).rejects.toThrow(/free trial includes 3 seats/);
     const sub = await db.withFirm(x.owner, (s) => getSubscription(s));
     expect(sub.seats).toEqual({ used: 3, limit: 3 });
     expect(sub.externalUsers).toBe(3);
@@ -127,11 +127,11 @@ describe("trial limits", () => {
     expect(sub.storage).toEqual({ usedBytes: 900, limitBytes: 1000 });
   });
 
-  it("AI questions: the month's allowance, counted across the firm", async () => {
+  it("AI questions: the trial's allowance, counted across the firm", async () => {
     const x = await setup();
     await db.withFirm(x.owner, (s) => askMatter(s, x.matter.id, "What happened first?"));
     await db.withFirm(x.paraCtx, (s) => askMatter(s, x.matter.id, "Who is the witness?"));
-    await expect(db.withFirm(x.owner, (s) => askMatter(s, x.matter.id, "One more?"))).rejects.toThrow(/this month's 2 AI questions/);
+    await expect(db.withFirm(x.owner, (s) => askMatter(s, x.matter.id, "One more?"))).rejects.toThrow(/free trial includes 2 AI questions/);
     expect((await db.withFirm(x.owner, (s) => getSubscription(s))).aiQuestions).toEqual({ usedThisMonth: 2, limitPerMonth: 2 });
   });
 });

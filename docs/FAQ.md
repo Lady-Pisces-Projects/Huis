@@ -269,17 +269,35 @@ Yes, and no. Connect your own Google account, then use **Choose files in Google 
 ### What about Google Drive, Filevine, Clio and StrongSuit?
 Google Drive comes next: first with Google's own file picker (Huis can only open the files you pick), then full browsing once Google's security assessment is done. Filevine and Clio need developer access from those companies, and StrongSuit (which supports an API connection and a user-interface merger) is being discussed with them. The Integrations page shows where each stands.
 
-### What happens when our free trial ends?
-Nothing is deleted or hidden. Everyone can still sign in, open every Matter and document, and export a whole Matter: your firm owns its data. Adding new work (new Matters, evidence, AI questions, imports and people) pauses until the firm subscribes, and it starts again the moment it does. The same applies if a payment is more than 7 days late.
+### How long is the free trial, and what does it include?
+7 days, with no card needed. The trial includes 1 seat (the person who signs up), 1 Matter, 2 GB of evidence and 100 AI questions for the whole trial, so you can see Huis work on a real case. Clients, co-counsel and experts you invite don't take a seat.
+
+### What counts as an AI question?
+A question you type to Matter Brain or to one of the AI agents (timeline, email, evidence, contradictions, privilege). Each one counts once, and deleting an answer doesn't give the question back. Everything Huis does by itself is free and unlimited, on the trial too: reading, scanning and searching your files, building the timeline, suggesting people, dates and claims in Case DNA, reading your case description, and analysing the Matter.
+
+### What happens when I describe the case while creating a Matter?
+Huis reads the description straight away and suggests the people, organizations, key dates and possible claims it mentions, each pointing to the words it came from. You confirm or reject them in Case DNA. The description is saved as the Matter's first note, so Matter Brain can search it. It's automatic and doesn't use any AI questions. For now Huis reads it with fixed, explainable rules (names with a title such as "Ms." or "Dr.", company names ending in Inc., LLC and similar, dates, and words that point to a claim), so check each suggestion and add anything it missed.
+
+### How do we pay?
+On the **Subscription** page, choose **Monthly** ($237 per seat per month) or **Yearly** ($2,370 per seat per year, two months free). You pay on Stripe's secure checkout page; Huis never sees your card number. Founding-member codes are entered on that page. If you subscribe while the trial still has more than 2 days left, billing starts when the trial ends. **Manage billing** opens Stripe's portal, where you can update the card, see invoices, switch between monthly and yearly, or cancel.
+
+### How many seats are we billed for?
+Your active attorneys and staff, automatically. When you add someone, remove someone or change their role, the number of seats billed follows, and Stripe adjusts the charge for the part of the period left.
+
+### What happens when our free trial ends before we pay?
+Adding new work (new Matters, evidence, AI questions, imports and people) pauses straight away. For **30 days** everyone can still sign in, open every Matter and document, and export a whole Matter, and firm staff see the date the files will be deleted. **After those 30 days, the trial firm's files and data are permanently deleted.** This also applies if you subscribed during the trial but cancelled before it ended, or the first charge failed. Paying at any point before then keeps everything.
+
+### What if we pay and later stop?
+**Once your firm has made its first payment, Huis never deletes its cases for non-payment.** If the subscription stops, adding new work pauses, and your Matters and information are kept, ready to open and export, until you subscribe again. If a card payment fails, Stripe retries it, and work carries on for 7 days' grace first.
 
 ### Do clients, co-counsel and experts need a paid seat?
 No. Seats are for attorneys and firm staff. People outside the firm you add to a Matter don't take one.
 
 ### Where can I see our plan and usage?
-Owners, managing partners, administrators and billing administrators have a **Subscription** page: the plan, trial days left or paid-through date, the monthly amount, and how many seats, how much storage and how many AI questions this month are in use. To subscribe or add seats, contact Huis; online payment is coming.
+Owners, managing partners, administrators and billing administrators have a **Subscription** page: the plan, trial days left or renewal date, and how many seats, Matters, how much storage and how many AI questions this month are in use. They subscribe and manage billing there too.
 
-### Why can't I upload a large file on the trial?
-The trial includes 2 GB of evidence and 100 AI questions a month, so nobody can load a whole discovery set for free. A file that wouldn't fit is refused before it's sent. Subscribing removes the limit.
+### Why can't I upload a large file, or open a second Matter, on the trial?
+The trial includes 1 Matter, 2 GB of evidence and 100 AI questions for the whole trial, so nobody can load a whole discovery set for free. A file that wouldn't fit is refused before it's sent. Subscribing removes these limits.
 
 ### Can we keep time and send invoices in Huis?
 Yes. Record time and expenses on each Matter's **Billing** page; time is billed in tenths of an hour at the rate in force that day. Billing staff or the Matter's lead attorney turn unbilled work into a draft invoice, check it, and issue it; the client then sees it on their portal. Issued invoices never change: to correct one, void it and issue a new one.

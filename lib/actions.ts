@@ -34,7 +34,11 @@ import {
 } from "../src/services/billing";
 import { ROLES } from "../src/security/permissions";
 import { UserFacingError } from "../src/errors";
-import { act, db, getPending, setSessionCookie, withSession } from "./server";
+import { act, db, getPending, getSession, setFlash, setSessionCookie, userMessage, withSession } from "./server";
+import { syncSeatsAfterPeopleChange } from "./billing";
+import { stripeConfig } from "../src/billing/stripe";
+import { openPortal, startCheckout } from "../src/services/stripe-billing";
+import { saveCaseDescription } from "../src/services/caseDescription";
 
 const text = (fd: FormData, key: string) => {
   const v = fd.get(key);
@@ -120,7 +124,12 @@ export async function createMatterAction(fd: FormData): Promise<void> {
       practiceArea: text(fd, "practiceArea"),
       restricted: fd.get("restricted") === "on",
     });
-    return { redirectTo: `/matters/${m.id}`, message: `Matter ${m.huisNumber} created.` };
+    // Phase 10 part 2a: the case description, read automatically (never counts as an AI question).
+    const d = await saveCaseDescription(s, m.id, typeof fd.get("description") === "string" ? String(fd.get("description")) : undefined);
+    const extra = d === null ? ""
+      : d.suggested > 0 ? ` Huis read the case description and suggested ${d.suggested} item${d.suggested === 1 ? "" : "s"} (people, dates and possible claims) to confirm in Case DNA.`
+      : " The case description is saved as the Matter's first note.";
+    return { redirectTo: d && d.suggested > 0 ? `/matters/${m.id}/dna` : `/matters/${m.id}`, message: `Matter ${m.huisNumber} created.${extra}` };
   }));
 }
 
@@ -153,18 +162,22 @@ export async function linkContactAction(fd: FormData): Promise<void> {
 // ---- Users -----------------------------------------------------------
 
 export async function inviteUserAction(fd: FormData): Promise<void> {
-  return act("/users", "Person added.", () => withSession(async (s) => {
-    const u = await inviteUser(s, {
-      email: text(fd, "email") ?? "",
-      fullName: text(fd, "fullName") ?? "",
-      role: z.enum(ROLES).parse(text(fd, "role")),
-      locationId: text(fd, "locationId") ?? "",
+  return act("/users", "Person added.", async () => {
+    const result = await withSession(async (s) => {
+      const u = await inviteUser(s, {
+        email: text(fd, "email") ?? "",
+        fullName: text(fd, "fullName") ?? "",
+        role: z.enum(ROLES).parse(text(fd, "role")),
+        locationId: text(fd, "locationId") ?? "",
+      });
+      return {
+        message: `${u.fullName} was added. Send them this one-time link (valid 7 days). It is shown only once.`,
+        secretLink: inviteLink(u.invitationToken),
+      };
     });
-    return {
-      message: `${u.fullName} was added. Send them this one-time link (valid 7 days). It is shown only once.`,
-      secretLink: inviteLink(u.invitationToken),
-    };
-  }));
+    await syncSeatsAfterPeopleChange();
+    return result;
+  });
 }
 
 export async function reissueInviteAction(fd: FormData): Promise<void> {
@@ -178,15 +191,51 @@ export async function reissueInviteAction(fd: FormData): Promise<void> {
 }
 
 export async function changeRoleAction(fd: FormData): Promise<void> {
-  return act("/users", "Role updated.", () => withSession(async (s) => {
-    await changeUserRole(s, text(fd, "userId") ?? "", z.enum(ROLES).parse(text(fd, "role")));
-  }));
+  return act("/users", "Role updated.", async () => {
+    await withSession(async (s) => {
+      await changeUserRole(s, text(fd, "userId") ?? "", z.enum(ROLES).parse(text(fd, "role")));
+    });
+    await syncSeatsAfterPeopleChange();
+  });
 }
 
 export async function disableUserAction(fd: FormData): Promise<void> {
-  return act("/users", "Access removed.", () => withSession(async (s) => {
-    await disableUser(s, text(fd, "userId") ?? "");
-  }));
+  return act("/users", "Access removed.", async () => {
+    await withSession(async (s) => {
+      await disableUser(s, text(fd, "userId") ?? "");
+    });
+    await syncSeatsAfterPeopleChange();
+  });
+}
+
+// ---- Subscription (Phase 10 part 2: Stripe) ----------------------------------
+
+/** Sends the person to Stripe's own page, or back to the Subscription page with a message. */
+async function toStripe(open: (ctx: { firmId: string; userId: string; sessionVersion: number }) => Promise<string>): Promise<never> {
+  const session = await getSession();
+  if (!session) redirect("/signin");
+  let url: string;
+  try {
+    url = await open({ firmId: session.firmId, userId: session.userId, sessionVersion: session.sessionVersion });
+  } catch (err) {
+    console.error("[huis] Stripe page not opened:", err instanceof Error ? err.name : "unknown");
+    const id = await setFlash({ kind: "error", message: userMessage(err) });
+    redirect(`/subscription?f=${id}`);
+  }
+  redirect(url);
+}
+
+export async function startCheckoutAction(fd: FormData): Promise<void> {
+  const cfg = stripeConfig();
+  if (!cfg) throw new UserFacingError("Online payment isn't set up yet. Contact Huis to subscribe.");
+  const interval = z.enum(["month", "year"]).parse(text(fd, "interval"));
+  return toStripe((ctx) => startCheckout(db(), ctx, cfg, { interval, baseUrl: authConfig().baseUrl }));
+}
+
+export async function openBillingPortalAction(): Promise<void> {
+  const cfg = stripeConfig();
+  if (!cfg) throw new UserFacingError("Online payment isn't set up yet. Contact Huis to subscribe.");
+  return toStripe((ctx) => openPortal(db(), ctx, cfg, { baseUrl: authConfig().baseUrl }));
 }
 
 // ---- Evidence -----------------------------------------------------------
