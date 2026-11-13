@@ -93,7 +93,12 @@ async function tokenRequest(params: Record<string, string>): Promise<TokenRespon
 export async function verifyGoogleIdToken(idToken: string, opts: { clientId: string; nonce: string; keys?: JWTVerifyGetKey }): Promise<{ subject: string; name: string | null; email: string | null }> {
   const { payload } = await jwtVerify(idToken, opts.keys ?? googleKeys(), {
     audience: opts.clientId, issuer: GOOGLE_ISSUERS, algorithms: ["RS256"], clockTolerance: 60,
+    // jose checks exp only when present: require it (security review 29, R29-2).
+    requiredClaims: ["exp", "iat", "sub"], maxTokenAge: "1h",
   });
+  // OIDC Core 3.1.3.7: with several audiences the authorized party must be present, and must be Huis (R29-1).
+  if (Array.isArray(payload.aud) && payload.aud.length > 1 && payload.azp === undefined) throw new Error("Google sign-in token has no authorized party.");
+  if (payload.azp !== undefined && payload.azp !== opts.clientId) throw new Error("Google sign-in token was issued to another app.");
   if (payload.nonce !== opts.nonce) throw new Error("Google sign-in token nonce mismatch.");
   if (typeof payload.sub !== "string" || !/^[0-9]{1,64}$/.test(payload.sub)) throw new Error("Google sign-in token has no user id.");
   return {
