@@ -35,6 +35,7 @@ import {
 import { ROLES } from "../src/security/permissions";
 import { SignInRuleError, UserFacingError } from "../src/errors";
 import { setSignInRule } from "../src/services/signinRule";
+import { MAX_LOGO_BYTES, setBranding, setLogo } from "../src/services/branding";
 import { reviewGap } from "../src/services/caseStrength";
 import { act, db, getPending, getSession, setFlash, setSessionCookie, userMessage, withSession } from "./server";
 import { syncSeatsAfterPeopleChange } from "./billing";
@@ -766,6 +767,25 @@ export async function relinkAction(fd: FormData): Promise<void> {
       message: "Send this one-time link to them. They must open it and sign in with your firm's own account; it works once, within 7 days, and is shown only once.",
       secretLink: inviteLink(token),
     };
+  }));
+}
+
+/** White label (Enterprise): the firm's display name and colours. */
+export async function setBrandingAction(fd: FormData): Promise<void> {
+  return act("/branding", "Branding saved.", () => withSession(async (s) => {
+    if (fd.get("clear") === "1") { await setBranding(s, { displayName: "", brandColor: "", accentColor: "" }); return; }
+    await setBranding(s, { displayName: text(fd, "displayName") ?? "", brandColor: text(fd, "brandColor") ?? "", accentColor: text(fd, "accentColor") ?? "" });
+  }));
+}
+
+/** White label (Enterprise): upload or remove the firm's logo. The database checks the file's first bytes. */
+export async function setLogoAction(fd: FormData): Promise<void> {
+  return act("/branding", "Logo saved.", () => withSession(async (s) => {
+    if (fd.get("remove") === "1") { await setLogo(s, null); return; }
+    const file = fd.get("logo");
+    if (!(file instanceof File) || file.size === 0) throw new UserFacingError("Choose a PNG, JPEG or WebP image.");
+    if (file.size > MAX_LOGO_BYTES) throw new UserFacingError("The logo can be up to 256 KB.");
+    await setLogo(s, Buffer.from(await file.arrayBuffer()));
   }));
 }
 
