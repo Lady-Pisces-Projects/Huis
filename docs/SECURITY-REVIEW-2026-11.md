@@ -535,6 +535,20 @@ Still open from this review: refused sign-ins and invitation attempts aren't rec
 
 Also: the usual date is 720 hours after the trial ended, so it doesn't move an hour across a daylight-saving change. Still open: the Stripe customer record isn't deleted; a payment whose notice arrives after deletion isn't refunded automatically; staff notes about a deleted firm stay in the staff log (they hold account remarks); a new table added later without the delete grant would make deletion fail (recorded and retried, visible in the failure table) until fixed.
 
+## Thirty-third review — White label (Phase 10 part 5)
+
+**Result:** no way to read another firm's branding or logo, no way for staff without the right role or clients to change it, and no way to put CSS or HTML into the page (colours are plain `#rrggbb`, checked by the database; the name is escaped). The reviewer confirmed 3 Low problems, a docs error and one header problem with no current exploit. **All fixed**, in `db/migrations/0044_review33.sql`, `src/services/branding.ts`, the Branding page and `next.config.ts`; regression tests in `test/security-review-33.test.ts` (4 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R33-1 | Low–Medium | Branding could be changed after an Enterprise agreement ran out, or while Huis had suspended the firm | Changing it needs the firm active with access |
+| R33-2 | Low | The name accepted invisible, direction-reversing and line-separator characters (a blank name, "Smith‮LLP" shown reversed, also in the audit log) | Refused; Unicode spaces trimmed; a letter or digit required |
+| R33-3 | Low | A firm that left Enterprise couldn't delete its saved logo or name | Removing works on any plan |
+| Headers | — | Each `/api` route's own content policy (`default-src 'none'; sandbox`) was being replaced by the page policy, so served files relied on their type and `nosniff` alone. Not exploitable today (images with `nosniff`; evidence as `octet-stream` attachments) | Every `/api` response now gets the strictest policy (nothing runs) |
+| Docs | Low | "Links and buttons use the accent colour": buttons use the menu colour | Corrected |
+
+Also: logos over 4000 pixels a side are refused (a 31 KB PNG could unpack to about 1 GB); branding rows go with their firm. Still open: the name can resemble "Huis Law" (the "on Huis Law" line stays under it); menu text drawn slightly transparent can fall a little under 4.5:1 on a colour that only just passes; the logo isn't re-encoded (photo metadata in a JPEG reaches the firm's users); a logo stays in a shared browser's cache up to an hour after sign-out.
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — since 12 November 2026 a firm can require its own Microsoft 365 or Google Workspace sign-in (PHASE-1, Sign-in security), so the organization's MFA applies to every staff sign-in. Huis doesn't verify MFA itself (no reliable claim in Google's or Microsoft's v2.0 ID tokens). Still open: a Huis passkey for firms without a managed organization, and MFA for Huis staff in the admin portal.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.

@@ -772,6 +772,7 @@ export async function relinkAction(fd: FormData): Promise<void> {
 /** White label (Enterprise): the firm's display name and colours. */
 export async function setBrandingAction(fd: FormData): Promise<void> {
   return act("/branding", "Branding saved.", () => withSession(async (s) => {
+    if (fd.get("clear") === "1") { await setBranding(s, { displayName: "", brandColor: "", accentColor: "" }); return; }
     await setBranding(s, { displayName: text(fd, "displayName") ?? "", brandColor: text(fd, "brandColor") ?? "", accentColor: text(fd, "accentColor") ?? "" });
   }));
 }

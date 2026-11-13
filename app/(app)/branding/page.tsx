@@ -62,9 +62,18 @@ export default async function BrandingPage({ searchParams }: { searchParams: Pro
         {branding?.hasLogo ? (
           <form action={setLogoAction}>
             <input type="hidden" name="remove" value="1" />
-            <button type="submit" className="secondary" disabled={!enterprise}>Remove logo</button>
+            <button type="submit" className="secondary">Remove logo</button>
           </form>
         ) : null}
+      </div>
+
+      <div className="card">
+        <h2>Remove all branding</h2>
+        <p>Clears the saved name and colours (any plan). Remove the logo above.</p>
+        <form action={setBrandingAction}>
+          <input type="hidden" name="clear" value="1" />
+          <button type="submit" className="secondary">Clear name and colours</button>
+        </form>
       </div>
     </>
   );

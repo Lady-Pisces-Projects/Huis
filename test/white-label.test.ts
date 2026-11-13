@@ -11,8 +11,14 @@ let t: TestDatabase;
 beforeAll(async () => { t = await createTestDatabase(); });
 afterAll(async () => { await t?.drop(); });
 
-const PNG = Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), Buffer.alloc(64, 1)]);
-const JPEG = Buffer.concat([Buffer.from("ffd8ffe0", "hex"), Buffer.alloc(64, 2)]);
+/** A real PNG header (signature + IHDR with the given size), padded. */
+const pngOf = (w: number, h: number) => {
+  const ihdr = Buffer.alloc(25); ihdr.writeUInt32BE(13, 0); ihdr.write("IHDR", 4, "latin1"); ihdr.writeUInt32BE(w, 8); ihdr.writeUInt32BE(h, 12); ihdr[16] = 8; ihdr[17] = 6;
+  return Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), ihdr, Buffer.alloc(40, 1)]);
+};
+const PNG = pngOf(160, 40);
+/** A JPEG start: SOI, then a baseline start-of-frame (SOF0) giving 40 x 120. */
+const JPEG = Buffer.concat([Buffer.from("ffd8ffc0001108002800780301220002110103110100", "hex"), Buffer.alloc(32, 2)]);
 const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
 const HTML_AS_PNG = Buffer.from("<html><script>alert(document.cookie)</script></html>");
 
@@ -88,7 +94,12 @@ describe("white label", () => {
     await expect(t.db.withFirm(f.owner, (s) => setLogo(s, SVG))).rejects.toThrow(/PNG, JPEG or WebP/);
     await expect(t.db.withFirm(f.owner, (s) => setLogo(s, HTML_AS_PNG))).rejects.toThrow(/PNG, JPEG or WebP/);
     await expect(t.db.withFirm(f.owner, (s) => setLogo(s, Buffer.concat([PNG, Buffer.alloc(262145)])))).rejects.toThrow(/256 KB/);
+    // A tiny file that unpacks to a huge image (16000 x 16000) is refused by the app and by the database.
+    await expect(t.db.withFirm(f.owner, (s) => setLogo(s, pngOf(16000, 16000)))).rejects.toThrow(/4000 pixels/);
+    await expect(t.db.withFirm(f.owner, (s) => s.client.query("SELECT huis.set_firm_logo($1)", [pngOf(16000, 16000)]))).rejects.toThrow(/4000 pixels/);
+    await expect(t.db.withFirm(f.owner, (s) => setLogo(s, JPEG))).resolves.toBeUndefined();
     await expect(t.db.withFirm(f.owner, (s) => setBranding(s, { displayName: "Line\nbreak", brandColor: "", accentColor: "" }))).rejects.toThrow(/one line/);
+    expect((await import("../src/services/branding")).imageSize(JPEG)).toEqual({ width: 120, height: 40 });
     await t.db.withFirm(f.owner, (s) => setLogo(s, PNG));
     await t.db.withFirm(f.owner, (s) => setLogo(s, null));
     expect((await t.db.withFirm(f.owner, (s) => getBranding(s)))?.hasLogo).toBe(false);
