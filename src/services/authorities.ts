@@ -209,6 +209,11 @@ export interface CitedAuthority {
   authority: Pick<Authority, "id" | "kind" | "citation" | "title" | "court" | "year" | "url" | "official" | "verified">;
 }
 
+/** Every authority cited in the Matter, by the claim, defense or element it is cited on (one query). */
+export async function authoritiesByNode(s: FirmSession, matterId: string): Promise<Map<string, CitedAuthority[]>> {
+  return citationsIn(s, matterId);
+}
+
 async function citationsIn(s: FirmSession, matterId: string): Promise<Map<string, CitedAuthority[]>> {
   const { rows } = await s.client.query(
     `SELECT l.id AS link_id, l.node_id, l.stance, l.proposition, l.pinpoint, ${AUTH_COLS}

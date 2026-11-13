@@ -4,9 +4,9 @@ import { PermissionDeniedError, UserFacingError } from "../errors";
 import { analyze, type ClaimIn, type DamageIn, type FactIn, type Gap, type MatterIn, type SourceRef, type StrengthReport } from "../intelligence/strength";
 import { INTERNAL_ROLES } from "../security/permissions";
 import { recordAudit } from "./audit";
-import { claimsMatrix } from "./authorities";
+import { authoritiesByNode } from "./authorities";
 import { getContradictions } from "./contradictions";
-import { citationsFor, claimView } from "./dna";
+import { citationsFor } from "./dna";
 import { getMatter } from "./matters";
 
 /**
@@ -35,51 +35,88 @@ export interface CaseStrength extends StrengthReport {
 export async function caseStrength(s: FirmSession, matterId: string): Promise<CaseStrength> {
   reader(s);
   await getMatter(s, matterId);
+  const report = await analyzeMatterStrength(s, matterId);
+  const { reviews } = await gapReviews(s, matterId);
+  const open = report.gaps.filter((g) => reviews.get(g.key)?.decision !== "set_aside");
+  const setAside = report.gaps.filter((g) => reviews.get(g.key)?.decision === "set_aside").map((g) => ({ ...g, review: reviews.get(g.key)! }));
+  return { ...report, reviews, open, setAside };
+}
 
-  const claimRows = (await s.client.query<{ id: string }>(
-    `SELECT id FROM huis.dna_nodes WHERE matter_id = $1 AND status = 'confirmed' AND kind IN ('claim', 'defense')
+type NodeRow = { id: string; kind: string; label: string; details: string };
+
+/**
+ * Everything the rules need, in a fixed number of queries whatever the Matter's size (security review 34: no
+ * query per claim). The same rules as Case DNA's claim view: confirmed elements with a confirmed "element of"
+ * link; facts that aren't rejected, counted only when the fact and its link are both confirmed.
+ */
+async function gather(s: FirmSession, matterId: string): Promise<{ input: MatterIn; truncated: boolean }> {
+  const claimRows = (await s.client.query<NodeRow>(
+    `SELECT id, kind, label, details FROM huis.dna_nodes WHERE matter_id = $1 AND status = 'confirmed' AND kind IN ('claim', 'defense')
       ORDER BY created_at, id LIMIT ${MAX_CLAIMS + 1}`, [matterId])).rows;
-  const matrix = await claimsMatrix(s, matterId);
-  const authoritiesOf = new Map(matrix.map((c) => [c.id, c.authorities]));
+  const claimList = claimRows.slice(0, MAX_CLAIMS);
+  const claimIds = claimList.map((c) => c.id);
 
-  const views = [];
-  for (const c of claimRows.slice(0, MAX_CLAIMS)) views.push(await claimView(s, c.id));
+  const elementRows = claimIds.length ? (await s.client.query<NodeRow & { claim_id: string }>(
+    `SELECT l.to_id AS claim_id, e.id, e.kind, e.label, e.details
+       FROM huis.dna_links l JOIN huis.dna_nodes e ON e.id = l.from_id
+      WHERE l.to_id = ANY($1::uuid[]) AND l.relation = 'element_of' AND l.status = 'confirmed' AND e.kind = 'element' AND e.status = 'confirmed'
+      ORDER BY e.created_at, e.label LIMIT 5000`, [claimIds])).rows : [];
+  const elementIds = elementRows.map((e) => e.id);
 
-  // Witnesses per fact (people linked by "witness to" or "involves", confirmed both ways).
-  const factIds = [...new Set(views.flatMap((v) => v.elements.flatMap((e) => [...e.supporting, ...e.contradicting].map((f) => f.id))))];
+  const factRows = elementIds.length ? (await s.client.query<NodeRow & { element_id: string; relation: string; status: string; link_status: string }>(
+    `SELECT l.to_id AS element_id, l.relation, l.status AS link_status, f.id, f.kind, f.label, f.details, f.status
+       FROM huis.dna_links l JOIN huis.dna_nodes f ON f.id = l.from_id
+      WHERE l.to_id = ANY($1::uuid[]) AND l.relation IN ('supports', 'contradicts') AND l.status <> 'rejected' AND f.status <> 'rejected'
+      ORDER BY f.event_date NULLS LAST, f.created_at LIMIT 20000`, [elementIds])).rows : [];
+  const counted = factRows.filter((f) => f.status === "confirmed" && f.link_status === "confirmed");
+  const factIds = [...new Set(counted.map((f) => f.id))];
+  const cites = await citationsFor(s, factIds, 50_000);
+
+  // Witnesses: people linked to a counted fact as "witness to" (a person merely involved isn't a witness: review 34).
   const witnessesOf = new Map<string, { id: string; label: string }[]>();
   if (factIds.length) {
     const { rows } = await s.client.query<{ fact_id: string; id: string; label: string }>(
       `SELECT CASE WHEN l.from_id = ANY($1::uuid[]) THEN l.from_id ELSE l.to_id END AS fact_id, p.id, p.label
          FROM huis.dna_links l JOIN huis.dna_nodes p ON p.id = CASE WHEN l.from_id = ANY($1::uuid[]) THEN l.to_id ELSE l.from_id END
-        WHERE (l.from_id = ANY($1::uuid[]) OR l.to_id = ANY($1::uuid[])) AND l.relation IN ('witness_to', 'involves')
-          AND l.status = 'confirmed' AND p.kind = 'person' AND p.status = 'confirmed'`, [factIds]);
-    for (const r of rows) witnessesOf.set(r.fact_id, [...(witnessesOf.get(r.fact_id) ?? []), { id: r.id, label: r.label }]);
+        WHERE (l.from_id = ANY($1::uuid[]) OR l.to_id = ANY($1::uuid[])) AND l.relation = 'witness_to'
+          AND l.status = 'confirmed' AND p.kind = 'person' AND p.status = 'confirmed' LIMIT 20000`, [factIds]);
+    for (const r of rows) {
+      const list = witnessesOf.get(r.fact_id) ?? [];
+      if (!list.some((w) => w.id === r.id)) list.push({ id: r.id, label: r.label });
+      witnessesOf.set(r.fact_id, list);
+    }
   }
 
-  const fact = (f: { id: string; label: string; citations: { id: string; evidenceId: string | null; noteId: string | null; quote: string; sourceTitle: string; isEmail: boolean }[] }): FactIn => ({
+  const authorities = await authoritiesByNode(s, matterId);
+  const refs = (id: string) => (authorities.get(id) ?? []).map((a) => ({ citation: a.authority.citation, url: a.authority.url, verified: a.authority.verified !== null, stance: a.stance }));
+  const fact = (f: NodeRow): FactIn => ({
     id: f.id, label: f.label, witnesses: witnessesOf.get(f.id) ?? [],
-    sources: f.citations.map((c): SourceRef => ({
+    sources: (cites.get(f.id) ?? []).map((c): SourceRef => ({
       kind: c.noteId ? "note" : c.isEmail ? "email" : "document", id: c.id, title: c.sourceTitle, quote: c.quote, evidenceId: c.evidenceId, noteId: c.noteId,
     })),
   });
-  const counts = (st: string, lst: string) => st === "confirmed" && lst === "confirmed";
-  const claims: ClaimIn[] = views.map((v) => ({
-    id: v.claim.id, kind: v.claim.kind as "claim" | "defense", label: v.claim.label, details: v.claim.details,
-    authorities: (authoritiesOf.get(v.claim.id) ?? []).map((a) => ({ citation: a.authority.citation, url: a.authority.url, verified: a.authority.verified !== null, stance: a.stance })),
-    elements: v.elements.map((e) => ({
-      id: e.element.id, label: e.element.label, details: e.element.details,
-      supporting: e.supporting.filter((f) => counts(f.status, f.linkStatus)).map(fact),
-      contradicting: e.contradicting.filter((f) => counts(f.status, f.linkStatus)).map(fact),
-      pendingSuggestions: [...e.supporting, ...e.contradicting].filter((f) => !counts(f.status, f.linkStatus)).length,
-    })),
+  const claims: ClaimIn[] = claimList.map((c) => ({
+    id: c.id, kind: c.kind as "claim" | "defense", label: c.label, details: c.details, authorities: refs(c.id),
+    elements: elementRows.filter((e) => e.claim_id === c.id).map((e) => {
+      const mine = factRows.filter((f) => f.element_id === e.id);
+      const ok = (f: (typeof factRows)[number]) => f.status === "confirmed" && f.link_status === "confirmed";
+      return {
+        id: e.id, label: e.label, details: e.details, authorities: refs(e.id),
+        supporting: mine.filter((f) => f.relation === "supports" && ok(f)).map(fact),
+        contradicting: mine.filter((f) => f.relation === "contradicts" && ok(f)).map(fact),
+        pendingSuggestions: mine.filter((f) => !ok(f)).length,
+      };
+    }),
   }));
 
-  // Damages: confirmed damage items, their amounts and sources.
+  // Damages: confirmed items; "sourced" means cited to a document or email (an attorney note isn't: review 34).
   const dmg = (await s.client.query<{ id: string; label: string; amount: string | null }>(
     "SELECT id, label, amount FROM huis.dna_nodes WHERE matter_id = $1 AND kind = 'damage' AND status = 'confirmed' ORDER BY created_at LIMIT 500", [matterId])).rows;
   const dmgCites = await citationsFor(s, dmg.map((d) => d.id));
-  const damages: DamageIn[] = dmg.map((d) => ({ id: d.id, label: d.label, amount: d.amount === null ? null : Number(d.amount), sources: (dmgCites.get(d.id) ?? []).length }));
+  const damages: DamageIn[] = dmg.map((d) => ({
+    id: d.id, label: d.label, amount: d.amount === null ? null : Number(d.amount),
+    sources: (dmgCites.get(d.id) ?? []).filter((c) => c.evidenceId).length,
+  }));
 
   const p = (await s.client.query<{ facts: number; links: number; other: number; total: number; unread: number }>(
     `SELECT (SELECT count(*)::int FROM huis.dna_nodes WHERE matter_id = $1 AND status = 'suggested' AND kind IN ('fact', 'damage')) AS facts,
@@ -89,24 +126,30 @@ export async function caseStrength(s: FirmSession, matterId: string): Promise<Ca
             (SELECT count(*)::int FROM huis.evidence_items WHERE matter_id = $1 AND status <> 'infected'
                AND (status <> 'clean' OR coalesce(extraction_status::text, '') NOT IN ('done', 'partial'))) AS unread`, [matterId])).rows[0]!;
   const con = await getContradictions(s, matterId);
-
-  const input: MatterIn = {
-    matterId, claims, damages,
-    contradictions: { confirmed: con.confirmed.length, potential: con.potential.length },
-    pending: { suggestedFacts: p.facts, suggestedLinks: p.links, suggestedOther: p.other },
-    evidence: { total: p.total, unread: p.unread },
+  return {
+    input: {
+      matterId, claims, damages,
+      contradictions: { confirmed: con.confirmed.length, potential: con.potential.length },
+      pending: { suggestedFacts: p.facts, suggestedLinks: p.links, suggestedOther: p.other },
+      evidence: { total: p.total, unread: p.unread },
+    },
+    truncated: claimRows.length > MAX_CLAIMS,
   };
-  const report = analyze(input);
+}
 
+async function analyzeMatterStrength(s: FirmSession, matterId: string): Promise<StrengthReport & { truncated: boolean }> {
+  const { input, truncated } = await gather(s, matterId);
+  return { ...analyze(input), truncated };
+}
+
+async function gapReviews(s: FirmSession, matterId: string) {
   const reviews = new Map<string, GapReview>();
   for (const r of (await s.client.query(
     `SELECT g.gap_key, g.decision, g.note, g.decided_at, coalesce(u.full_name, 'Former user') AS by
-       FROM huis.case_gap_reviews g LEFT JOIN huis.users u ON u.id = g.decided_by WHERE g.matter_id = $1`, [matterId])).rows) {
+       FROM huis.case_gap_reviews g LEFT JOIN huis.users u ON u.id = g.decided_by WHERE g.matter_id = $1 ORDER BY g.decided_at DESC LIMIT 1000`, [matterId])).rows) {
     reviews.set(r.gap_key, { gapKey: r.gap_key, decision: r.decision, note: r.note, by: r.by, at: r.decided_at });
   }
-  const open = report.gaps.filter((g) => reviews.get(g.key)?.decision !== "set_aside");
-  const setAside = report.gaps.filter((g) => reviews.get(g.key)?.decision === "set_aside").map((g) => ({ ...g, review: reviews.get(g.key)! }));
-  return { ...report, reviews, open, setAside, truncated: claimRows.length > MAX_CLAIMS };
+  return { reviews };
 }
 
 const reviewInput = z.object({
@@ -121,6 +164,10 @@ export async function reviewGap(s: FirmSession, matterId: string, input: unknown
   if (s.actor.role === "read_only") throw new PermissionDeniedError("review gaps");
   await getMatter(s, matterId);
   const v = reviewInput.parse(input);
+  // Only a gap the current analysis of this Matter shows (security review 34: no made-up keys).
+  const current = (await analyzeMatterStrength(s, matterId)).gaps.some((g) => g.key === v.gapKey);
+  const existing = (await s.client.query("SELECT 1 FROM huis.case_gap_reviews WHERE matter_id = $1 AND gap_key = $2", [matterId, v.gapKey])).rowCount;
+  if (!current && !(v.decision === "reopen" && existing)) throw new UserFacingError("That gap isn't in this Matter's analysis any more.");
   if (v.decision === "reopen") {
     await s.client.query("DELETE FROM huis.case_gap_reviews WHERE matter_id = $1 AND gap_key = $2", [matterId, v.gapKey]);
   } else {

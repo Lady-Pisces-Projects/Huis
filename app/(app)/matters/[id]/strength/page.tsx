@@ -43,9 +43,11 @@ function Why({ e, claim }: { e: ElementResult; claim: ClaimResult }) {
       <h4>Missing evidence</h4>
       {e.missing.length ? <ul>{e.missing.map((m) => <li key={m}>{m}</li>)}</ul> : <p className="notice">Nothing more the rules look for.</p>}
       <h4>Applicable law</h4>
-      {claim.authorities.length ? (
-        <ul>{claim.authorities.map((a) => <li key={a.citation}>{a.url ? <a href={a.url} target="_blank" rel="noopener noreferrer nofollow">{a.citation}</a> : a.citation} ({a.stance}{a.verified ? ", verified" : ", not verified"})</li>)}</ul>
-      ) : <p className="notice">No authorities cited for this claim yet{claim.details ? `. The claim notes: ${claim.details}` : ""}.</p>}
+      {[...e.authorities, ...claim.authorities].length ? (
+        <ul>{[...e.authorities.map((a) => ({ ...a, on: "this element" })), ...claim.authorities.map((a) => ({ ...a, on: "the claim" }))].map((a, i) => (
+          <li key={`${a.citation}-${i}`}>{a.url ? <a href={a.url} target="_blank" rel="noopener noreferrer nofollow">{a.citation}</a> : a.citation} ({a.stance}, cited on {a.on}{a.verified ? ", verified" : ", not verified"})</li>
+        ))}</ul>
+      ) : <p className="notice">No authorities cited for this element or claim yet{claim.details ? `. The claim notes: ${claim.details}` : ""}.</p>}
       <h4>Assumptions</h4>
       <p className="notice">Only confirmed facts and links count; Huis&apos;s suggestions waiting for review don&apos;t. Anything you can&apos;t see (behind an ethical wall) isn&apos;t counted. Huis doesn&apos;t judge how persuasive a fact is, only whether it is there, sourced and corroborated.</p>
     </details>
@@ -65,7 +67,7 @@ function ClaimCard({ c, matterId }: { c: ClaimResult; matterId: string }) {
               <tr key={e.id}>
                 <td>{e.label}</td>
                 <td>{e.score}</td>
-                <td>{e.supporting.length ? `${e.supporting.length} fact${e.supporting.length === 1 ? "" : "s"}, ${e.independentSources} source${e.independentSources === 1 ? "" : "s"}${e.witnesses.length ? `, ${e.witnesses.length} witness${e.witnesses.length === 1 ? "" : "es"}` : ""}${e.disputed ? `, ${e.contradicting.length} contradicting` : ""}` : "None yet"}</td>
+                <td>{e.supporting.length ? `${e.supporting.length} fact${e.supporting.length === 1 ? "" : "s"}, ${e.documentSources} document${e.documentSources === 1 ? "" : "s"} or email${e.documentSources === 1 ? "" : "s"}${e.witnesses.length ? `, ${e.witnesses.length} witness${e.witnesses.length === 1 ? "" : "es"}` : ""}${e.disputed ? `, ${e.contradicting.length} contradicting` : ""}` : "None yet"}</td>
                 <td><Why e={e} claim={c} /></td>
               </tr>
             ))}
@@ -156,8 +158,9 @@ export default async function StrengthPage({ params, searchParams }: { params: P
         </table>
         <p className="notice">
           Each element scores {SCORE_RULES.supported} for a confirmed supporting fact, +{SCORE_RULES.documented} if it is cited to a document or email,
-          +{SCORE_RULES.twoSources} for two independent sources, +{SCORE_RULES.witness} for a linked witness and +{SCORE_RULES.threeSources} for three or
-          more sources (up to 100), less {-SCORE_RULES.perContradiction} for each confirmed contradicting fact (not below {SCORE_RULES.floor} while supported).
+          +{SCORE_RULES.twoSources} for two independent documents or emails, +{SCORE_RULES.witness} for a person linked as a witness and +{SCORE_RULES.threeSources} for
+          three or more documents or emails (up to 100), less {-SCORE_RULES.perContradiction} for each confirmed contradicting fact (not below {SCORE_RULES.floor} while
+          supported). Attorney notes count as support but not as extra sources. The overall rating is never better than the weakest claim.
         </p>
       </div>
 

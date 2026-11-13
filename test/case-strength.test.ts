@@ -85,7 +85,9 @@ describe("the rules (fixed and explainable)", () => {
     // Most severe first.
     const order = { Critical: 0, High: 1, Medium: 2, Low: 3 } as const;
     expect(r.gaps.map((g) => order[g.severity])).toEqual([...r.gaps.map((g) => order[g.severity])].sort((a, b) => a - b));
-    expect(r.overall.rating).toBe("Weak");
+    // Never better than the weakest claim: the claim with no elements makes it Insufficient information.
+    expect(r.overall.rating).toBe("Insufficient information");
+    expect(r.overall.why).toContain("capped at the weakest claim");
     expect(r.categories.find((c) => c.key === "discovery")!.value).toBeNull(); // not measured: said so, not invented
     expect(r.confidence.level).toBe("Medium");
     expect(JSON.stringify(r)).not.toMatch(/probability|chance of winning|likely to win/i);
@@ -191,7 +193,7 @@ describe("Case Outcome Intelligence on a Matter", () => {
     expect(after.open.map((g) => g.key)).not.toContain("no-damages");
     expect(after.setAside[0]!.review.note).toBe("Damages to be pleaded later.");
     expect(after.overall.score).toBe(r.overall.score);
-    await expect(db.withFirm(x.owner, (s) => reviewGap(s, x.matter.id, { gapKey: "contradictions", decision: "set_aside", note: "" }))).rejects.toThrow(/why/);
+    await expect(db.withFirm(x.owner, (s) => reviewGap(s, x.matter.id, { gapKey: r.open[0]!.key, decision: "set_aside", note: "" }))).rejects.toThrow(/why/);
     await db.withFirm(x.owner, (s) => reviewGap(s, x.matter.id, { gapKey: gap.key, decision: "reopen" }));
     expect((await db.withFirm(x.owner, (s) => caseStrength(s, x.matter.id))).open.map((g) => g.key)).toContain("no-damages");
     const audit = await t.admin.query("SELECT count(*) FROM huis.audit_events WHERE matter_id = $1 AND action = 'case_strength.gap_reviewed'", [x.matter.id]);

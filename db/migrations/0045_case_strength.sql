@@ -41,7 +41,6 @@ END $$;
 CREATE TRIGGER case_gap_reviews_guard BEFORE UPDATE ON huis.case_gap_reviews FOR EACH ROW EXECUTE FUNCTION huis.case_gap_reviews_guard();
 
 -- Deleting an unpaid trial's data (0041) removes every table with the firm's id as huis_security, so that role
--- needs DELETE here too; and from now on on every new table, so a table added later can't stop deletion
--- (security review 32's open item).
+-- needs DELETE here too. Granted table by table (not as a default for every future table, which would also reach
+-- add-only platform tables: security review 34); test/trial-deletion.test.ts fails if a firm table is missed.
 GRANT SELECT, DELETE ON huis.case_gap_reviews TO huis_security;
-ALTER DEFAULT PRIVILEGES IN SCHEMA huis GRANT SELECT, DELETE ON TABLES TO huis_security;

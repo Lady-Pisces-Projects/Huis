@@ -15,8 +15,9 @@ export type Confidence = "High" | "Medium" | "Low";
 
 export interface SourceRef { kind: "document" | "email" | "note"; id: string; title: string; quote: string; evidenceId: string | null; noteId: string | null }
 export interface FactIn { id: string; label: string; sources: SourceRef[]; witnesses: { id: string; label: string }[] }
-export interface ElementIn { id: string; label: string; details: string; supporting: FactIn[]; contradicting: FactIn[]; pendingSuggestions: number }
-export interface ClaimIn { id: string; kind: "claim" | "defense"; label: string; details: string; elements: ElementIn[]; authorities: { citation: string; url: string; verified: boolean; stance: string }[] }
+export interface AuthorityRef { citation: string; url: string; verified: boolean; stance: string }
+export interface ElementIn { id: string; label: string; details: string; supporting: FactIn[]; contradicting: FactIn[]; pendingSuggestions: number; authorities?: AuthorityRef[] }
+export interface ClaimIn { id: string; kind: "claim" | "defense"; label: string; details: string; elements: ElementIn[]; authorities: AuthorityRef[] }
 export interface DamageIn { id: string; label: string; amount: number | null; sources: number }
 export interface MatterIn {
   matterId: string;
@@ -31,7 +32,8 @@ export interface ScoreLine { points: number; why: string }
 export interface ElementResult {
   id: string; label: string; details: string; score: number; lines: ScoreLine[];
   supporting: FactIn[]; contradicting: FactIn[];
-  documented: boolean; independentSources: number; witnesses: { id: string; label: string }[]; disputed: boolean;
+  documented: boolean; independentSources: number; documentSources: number; witnesses: { id: string; label: string }[]; disputed: boolean;
+  authorities: AuthorityRef[];
   /** What would raise this element's score. */
   missing: string[];
 }
@@ -86,11 +88,12 @@ export function scoreElement(e: ElementIn): ElementResult {
     } else {
       missing.push(sources.length ? "A document or email (so far only attorney notes)." : "A source for the supporting fact (a document or email).");
     }
-    if (sources.length >= 2 && docs.length >= 1) {
+    // Extra points count documents and emails only: an attorney's own note isn't independent evidence (review 34).
+    if (docs.length >= 2) {
       score += RULES.twoSources;
-      lines.push({ points: RULES.twoSources, why: `${sources.length} independent sources.` });
+      lines.push({ points: RULES.twoSources, why: `${docs.length} independent documents or emails.` });
     } else if (docs.length >= 1) {
-      missing.push("A second, independent source.");
+      missing.push("A second, independent document or email.");
     }
     if (witnesses.length > 0) {
       score += RULES.witness;
@@ -98,9 +101,9 @@ export function scoreElement(e: ElementIn): ElementResult {
     } else {
       missing.push("A witness linked to a supporting fact.");
     }
-    if (sources.length >= 3 && docs.length >= 1) {
+    if (docs.length >= 3) {
       score += RULES.threeSources;
-      lines.push({ points: RULES.threeSources, why: "Three or more independent sources." });
+      lines.push({ points: RULES.threeSources, why: "Three or more independent documents or emails." });
     }
     if (e.contradicting.length > 0) {
       const cut = Math.max(RULES.perContradiction * e.contradicting.length, RULES.floor - score);
@@ -111,7 +114,8 @@ export function scoreElement(e: ElementIn): ElementResult {
   return {
     id: e.id, label: e.label, details: e.details, score: Math.max(0, Math.min(100, score)), lines,
     supporting: e.supporting, contradicting: e.contradicting,
-    documented: docs.length > 0, independentSources: sources.length, witnesses, disputed: e.contradicting.length > 0, missing,
+    documented: docs.length > 0, independentSources: sources.length, documentSources: docs.length, witnesses, disputed: e.contradicting.length > 0, missing,
+    authorities: e.authorities ?? [],
   };
 }
 
@@ -137,7 +141,7 @@ export function rateClaim(c: ClaimIn): ClaimResult {
     ].filter(Boolean).join("; ") + ".";
   } else if (elements.every((e) => e.score >= 90)) {
     rating = "Very strong";
-    why = "Every element has documents or emails from at least two independent sources and a witness, and nothing confirmed contradicts it.";
+    why = "Every element has at least two independent documents or emails and a witness, and nothing confirmed contradicts it.";
   } else {
     rating = "Strong";
     why = "Every element has a confirmed fact cited to a document or email, and nothing confirmed contradicts any of them.";
@@ -153,15 +157,17 @@ export function ratingFor(score: number | null): Rating {
   return "Weak";
 }
 
-const CAUSATION = /caus|because of|but-for|related to|connection/i;
+const CAUSATION = /\bcaus(e|ed|al|ation)\b|because of|but-for|connection/i;
 const DAMAGE = /damage|loss|injur|harm/i;
+/** Damages first when the label starts with it ("Damages caused by the breach" is about damages). */
+const isCausation = (label: string) => CAUSATION.test(label) && !/^\s*damage/i.test(label);
 const ADVERSE = /adverse|terminat|discharg|fired|demot|interfer/i;
 const PROTECTED = /protected|leave|opposition|complain|report|participat|entitled|policy/i;
 const CONTRACT = /contract|agreement|perform|breach/i;
 const DISABILITY = /disab|qualified|accommodat/i;
 
 function impactOf(label: string): Impact {
-  if (CAUSATION.test(label)) return "Causation";
+  if (isCausation(label)) return "Causation";
   if (DAMAGE.test(label)) return "Damages";
   return "Liability";
 }
@@ -169,7 +175,7 @@ function impactOf(label: string): Impact {
 /** Suggested actions for an element without enough support. Starting points for the attorney, by the element's name. */
 export function actionsFor(label: string): string[] {
   const a: string[] = [`Use "Find evidence" on this element to search the Matter's documents and emails for it.`];
-  if (CAUSATION.test(label)) a.push(
+  if (isCausation(label)) a.push(
     "Look for communications by the decision-maker around the date of the adverse action.",
     "Compare the reasons given for the decision over time (letters, emails, HR notes, agency responses).",
     "Request the approval chain and meeting notes for the decision in discovery.",
@@ -209,7 +215,7 @@ export function analyze(m: MatterIn): StrengthReport {
       if (!e.documented) {
         gaps.push({ key: `notes-only:${e.id}`, severity: "High", impact: impactOf(e.label), title: `${c.label}: "${e.label}" has no document or email behind it`,
           detail: "The supporting facts rest only on attorney notes or have no source. A document or email would make it provable.", ...where, actions: actionsFor(e.label) });
-      } else if (e.independentSources < 2) {
+      } else if (e.documentSources < 2) {
         gaps.push({ key: `single-source:${e.id}`, severity: "Medium", impact: impactOf(e.label), title: `${c.label}: "${e.label}" rests on a single source`,
           detail: "One document or email supports it. If it is challenged or excluded, nothing else does.", ...where, actions: actionsFor(e.label).slice(0, 3) });
       }
@@ -224,7 +230,7 @@ export function analyze(m: MatterIn): StrengthReport {
           actions: ["Identify who has first-hand knowledge and link them to the supporting fact as a witness."] });
       }
       if (e.score >= 90 && !e.disputed) {
-        strengths.push({ text: `${c.label}: "${e.label}" is backed by ${e.independentSources} independent sources and ${e.witnesses.map((w) => w.label).join(", ")}.`, href });
+        strengths.push({ text: `${c.label}: "${e.label}" is backed by ${e.documentSources} independent documents or emails and a witness (${e.witnesses.map((w) => w.label).join(", ")}).`, href });
       } else if (e.documented && !e.disputed) {
         strengths.push({ text: `${c.label}: "${e.label}" is supported by a document or email.`, href });
       }
@@ -270,7 +276,7 @@ export function analyze(m: MatterIn): StrengthReport {
 
   // Matter-level categories, each a fixed rule over the claims' elements.
   const els = claims.flatMap((c) => c.elements);
-  const causal = els.filter((e) => CAUSATION.test(e.label));
+  const causal = els.filter((e) => isCausation(e.label));
   const dmgDocumented = m.damages.filter((d) => d.amount !== null && d.sources > 0).length;
   const defenseScores = defenses.filter((d) => d.score !== null).map((d) => d.score!);
   const categories: Category[] = [
@@ -281,7 +287,7 @@ export function analyze(m: MatterIn): StrengthReport {
     { key: "witnesses", label: "Witness support", value: pct(els.filter((e) => e.witnesses.length).length, els.length),
       rule: "Share of claim elements with a person linked as a witness to a supporting fact.", why: `${els.filter((e) => e.witnesses.length).length} of ${els.length} elements.` },
     { key: "causation", label: "Causation", value: causal.length ? Math.round(causal.reduce((a, e) => a + e.score, 0) / causal.length) : null,
-      rule: "Average score of the elements about causation (named with cause, connection, because of or related to).",
+      rule: "Average score of the elements about causation (named with cause, causal, causation, connection, because of or but-for).",
       why: causal.length ? causal.map((e) => `${e.label}: ${e.score}`).join("; ") : "No causation element in the claims." },
     { key: "damages", label: "Damages evidence", value: claims.length ? pct(dmgDocumented, Math.max(m.damages.length, 1)) : null,
       rule: "Share of damage items with both an amount and a source (0 if none are recorded).",
@@ -298,12 +304,19 @@ export function analyze(m: MatterIn): StrengthReport {
 
   const scored = claims.filter((c) => c.score !== null);
   const overallScore = scored.length ? Math.round(scored.reduce((a, c) => a + c.score!, 0) / scored.length) : null;
+  // The overall rating is never better than the weakest claim (a claim with no elements counts as Insufficient
+  // information), so an average can't hide a claim that fails (security review 34).
+  const RANK: Rating[] = ["Insufficient information", "Weak", "Moderate", "Strong", "Very strong"];
+  const banded = ratingFor(overallScore);
+  const weakest = claims.length ? claims.map((c) => c.rating).reduce((a, b) => (RANK.indexOf(a) <= RANK.indexOf(b) ? a : b)) : "Insufficient information";
+  const rating: Rating = RANK.indexOf(weakest) < RANK.indexOf(banded) ? weakest : banded;
+  const capped = rating !== banded ? ` The rating is capped at the weakest claim (${claims.find((c) => c.rating === weakest)!.label}: ${weakest}).` : "";
   const overall = {
     score: overallScore,
-    rating: ratingFor(overallScore),
+    rating,
     why: !claims.length ? "No claims have been added to Case DNA yet."
       : !scored.length ? "None of the claims has elements yet."
-      : `Average of ${plural(scored.length, "claim's", "claims'")} evidence scores (${scored.map((c) => `${c.label}: ${c.score}`).join("; ")}). 85 or more is Very strong, 65 Strong, 40 Moderate, below 40 Weak.`,
+      : `Average of ${plural(scored.length, "claim's", "claims'")} evidence scores (${scored.map((c) => `${c.label}: ${c.score}`).join("; ")}). 85 or more is Very strong, 65 Strong, 40 Moderate, below 40 Weak.${capped}`,
   };
 
   // Confidence: how much of the Matter the scores can rest on.

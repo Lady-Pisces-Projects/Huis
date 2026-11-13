@@ -535,6 +535,21 @@ Still open from this review: refused sign-ins and invitation attempts aren't rec
 
 Also: the usual date is 720 hours after the trial ended, so it doesn't move an hour across a daylight-saving change. Still open: the Stripe customer record isn't deleted; a payment whose notice arrives after deletion isn't refunded automatically; staff notes about a deleted firm stay in the staff log (they hold account remarks); a new table added later without the delete grant would make deletion fail (recorded and retried, visible in the failure table) until fixed.
 
+## Thirty-fourth review — Case Outcome Intelligence, part 1 (Phase 11)
+
+**Result:** clients, other outside people and staff outside an ethical wall can't reach the page, the action or any of the data it reads (checked in the page, the service and the database); read-only staff can read but not review; gap reviews are tied to the firm's own Matter and record the real reviewer; only confirmed facts and links count; quotes from walled or unclean evidence stay hidden; nothing says probability; no HTML injection (authority links are https-only). The reviewer confirmed 1 High and 4 Medium problems about honesty, performance and permissions, and 1 Low. **All fixed**; regression tests in `test/security-review-34.test.ts` (7 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R34-1 | High | The overall rating was the average's band: a claim with an unsupported element (Weak) could sit under an overall "Strong", and a claim with no elements was left out (so half a case read "Very strong") | The overall rating is never better than the weakest claim; a claim with no elements counts as Insufficient information |
+| R34-2 | Medium | An attorney's own note counted as the second "independent source", so one document, a note and a witness read "Very strong — two independent documents or emails" | Extra-source points count documents and emails only; wording matches |
+| R34-3 | Medium | Authorities cited on an element never appeared ("No authorities cited") | The panel shows the element's and the claim's authorities |
+| R34-4 | Medium | Every claim was read twice per page view (the claims matrix, then again): thousands of queries for a large Matter | Read in a fixed number of queries, whatever the size |
+| R34-5 | Medium | A default grant gave `huis_security` SELECT and DELETE on every future table, including add-only platform tables (undoing R32-5 for new ones) | Removed; granted per table, with the existing test checking every firm table |
+| R34-6 | Low | Any well-formed gap key could be stored (unlimited made-up reviews) | Only gaps in the current analysis of that Matter |
+
+Also: only people linked as "witness to" count as witnesses (not someone merely involved); the causation match no longer catches "related to" or "because" alone, and an element starting with "Damages" is about damages; a damage item counts as documented only with a document or email behind it. Still open: near-copies of one document (a PDF and the same file attached to an email) count as separate sources; confirmed contradictions count toward Credibility even when their statement is hidden from the reader; viewing the page isn't audited (like Case DNA and the claims matrix).
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — since 12 November 2026 a firm can require its own Microsoft 365 or Google Workspace sign-in (PHASE-1, Sign-in security), so the organization's MFA applies to every staff sign-in. Huis doesn't verify MFA itself (no reliable claim in Google's or Microsoft's v2.0 ID tokens). Still open: a Huis passkey for firms without a managed organization, and MFA for Huis staff in the admin portal.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.
