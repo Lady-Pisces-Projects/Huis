@@ -58,13 +58,16 @@ async function asHuis(sql: string, params: unknown[] = []) {
 const endTrial = (firmId: string, days: number) =>
   asHuis("UPDATE huis.firms SET trial_ends_at = now() - make_interval(hours => $2) WHERE id = $1", [firmId, Math.round(days * 24)]);
 
-/** Marks this firm's warnings as sent `daysAgo` days ago (as if the worker had sent them on time). */
-async function warnedAgo(firmId: string, d14: number, d7: number, d1: number) {
-  await t.worker.query("SELECT huis.worker_queue_deletion_notices()");
-  await t.admin.query(`UPDATE huis.firm_deletion_notices SET status = 'sent',
-      sent_at = now() - make_interval(days => CASE days_before WHEN 14 THEN $2 WHEN 7 THEN $3 ELSE 0 END)
-                      - CASE WHEN days_before = 1 THEN make_interval(hours => $4 * 24) ELSE interval '0' END
-    WHERE firm_id = $1`, [firmId, d14, d7, d1]);
+/** Makes the firm's deletion round due now, with its warnings sent on time (14 days and 1 day before). */
+async function roundDue(firmId: string) {
+  await t.admin.query(`INSERT INTO huis.firm_deletion_rounds (firm_id, base_after, delete_on, started_at)
+      VALUES ($1, coalesce(huis.firm_trial_delete_base($1), (SELECT trial_ends_at + interval '720 hours' FROM huis.firms WHERE id = $1)), now() - interval '1 hour', now() - interval '15 days')
+      ON CONFLICT (firm_id) DO UPDATE SET base_after = EXCLUDED.base_after, delete_on = EXCLUDED.delete_on, started_at = EXCLUDED.started_at`, [firmId]);
+  await t.admin.query("DELETE FROM huis.firm_deletion_notices WHERE firm_id = $1", [firmId]);
+  await t.admin.query(`INSERT INTO huis.firm_deletion_notices (firm_id, user_id, days_before, for_delete_after, status, sent_at)
+      SELECT $1, u.id, k.d, r.delete_on, 'sent', r.delete_on - make_interval(days => k.d)
+        FROM huis.firm_deletion_rounds r JOIN huis.users u ON u.firm_id = r.firm_id AND u.role = 'firm_owner'
+        CROSS JOIN (VALUES (14), (7), (1)) k(d) WHERE r.firm_id = $1`, [firmId]);
 }
 
 async function upload(who: RequestContext, matterId: string, filename: string, content: Buffer) {
@@ -136,10 +139,10 @@ describe("warnings", () => {
     expect(email.sent[0]!.subject).toContain("will be deleted on");
     expect(email.sent[0]!.text).toContain("/subscription");
     expect(await w.queueDue(true)).toBe(0); // not again
-    // A new deletion date (the trial end moved) means a new set of warnings, from the 14-day one: half a day
-    // left, so all three are due now, and the deletion itself then waits until the 14-day one is 13 days old.
+    // A changed trial end means a new round: a new date at least 14 days away and a fresh 14-day warning, never
+    // a burst of warnings for a date that is about to pass (security review 32).
     await endTrial(f.firmId, 29.5);
-    expect(await w.queueDue(true)).toBe(3);
+    expect(await w.queueDue(true)).toBe(1);
     while (await w.sendOnce()) { /* send */ }
   });
 
@@ -188,7 +191,7 @@ describe("deleting", () => {
   it("does nothing at all while turned off", async () => {
     const f = await newFirm(t.db);
     await endTrial(f.firmId, 31);
-    await warnedAgo(f.firmId, 15, 8, 2);
+    await roundDue(f.firmId);
     expect(await worker(new FakeEmail(), false).runOnce()).toBe(false);
     expect(await firmRowCounts(f.firmId)).toHaveProperty("firms", 1);
   });
@@ -204,7 +207,7 @@ describe("deleting", () => {
     const otherBefore = await firmRowCounts(other.firmId);
 
     await endTrial(f.firmId, 31);
-    await warnedAgo(f.firmId, 15, 8, 2);
+    await roundDue(f.firmId);
     const w = worker(new FakeEmail());
     expect(await w.deleteOnce()).toBe(true); // rows (of this or another due firm from the tests above)
     while (await w.deleteOnce()) { /* the rest, then the files */ }
@@ -224,14 +227,14 @@ describe("deleting", () => {
   it("is checked again at the moment of deletion: a firm that just paid, or that Huis suspended, is kept", async () => {
     const paid = await newFirm(t.db);
     await endTrial(paid.firmId, 31);
-    await warnedAgo(paid.firmId, 15, 8, 2);
+    await roundDue(paid.firmId);
     await t.admin.query("SELECT huis.operator_set_subscription($1, 'professional', 5, NULL, now() + interval '30 days', 'active', 'paid')", [paid.firmId]);
     expect((await t.worker.query("SELECT huis.worker_delete_firm($1) AS p", [paid.firmId])).rows[0].p).toBeNull();
     expect(await firmRowCounts(paid.firmId)).toHaveProperty("firms", 1);
 
     const held = await newFirm(t.db);
     await endTrial(held.firmId, 31);
-    await warnedAgo(held.firmId, 15, 8, 2);
+    await roundDue(held.firmId);
     await asHuis("UPDATE huis.firms SET status = 'suspended' WHERE id = $1", [held.firmId]);
     expect((await t.worker.query("SELECT huis.worker_delete_firm($1) AS p", [held.firmId])).rows[0].p).toBeNull();
   });

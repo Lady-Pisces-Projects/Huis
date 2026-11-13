@@ -33,9 +33,14 @@ async function main() {
   console.log("before:", JSON.stringify(await counts()));
 
   // Setup only (superuser, triggers off for this one statement set): an unpaid trial that ended 31 days ago.
-  await admin.query("BEGIN; SET LOCAL session_replication_role = replica; UPDATE huis.firms SET plan = 'trial', first_paid_at = NULL, trial_ends_at = now() - interval '31 days', paid_through = NULL WHERE id = $1; COMMIT;".replace("$1", `'${firmId}'`));
-  await admin.query("SET ROLE huis_worker"); await admin.query("SELECT huis.worker_queue_deletion_notices()"); await admin.query("RESET ROLE");
-  await admin.query(`UPDATE huis.firm_deletion_notices SET status = 'sent', sent_at = now() - make_interval(days => days_before + 1) WHERE firm_id = $1`, [firmId]);
+  await admin.query("BEGIN; SET LOCAL session_replication_role = replica; UPDATE huis.firms SET plan = 'trial', first_paid_at = NULL, trial_ends_at = now() - interval '745 hours', paid_through = NULL WHERE id = $1; COMMIT;".replace("$1", `'${firmId}'`));
+  // A deletion round that started 15 days ago, its date just passed, with its warnings sent on time.
+  await admin.query(`INSERT INTO huis.firm_deletion_rounds (firm_id, base_after, delete_on, started_at)
+      VALUES ($1, huis.firm_trial_delete_base($1), now() - interval '1 hour', now() - interval '15 days')`, [firmId]);
+  await admin.query(`INSERT INTO huis.firm_deletion_notices (firm_id, user_id, days_before, for_delete_after, status, sent_at)
+      SELECT $1, u.id, k.d, r.delete_on, 'sent', r.delete_on - make_interval(days => k.d)
+        FROM huis.firm_deletion_rounds r JOIN huis.users u ON u.firm_id = r.firm_id AND u.role = 'firm_owner'
+        CROSS JOIN (VALUES (14), (7), (1)) k(d) WHERE r.firm_id = $1`, [firmId]);
 
   await admin.query("SET ROLE huis_worker");
   const prefix = (await admin.query("SELECT huis.worker_delete_firm($1) AS p", [firmId])).rows[0].p;

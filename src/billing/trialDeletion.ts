@@ -95,27 +95,48 @@ export class TrialDeletionWorker {
     return true;
   }
 
-  /** Deletes one firm that is due, then its files. Returns true if it did anything. */
+  /** Deletes one firm that is due, then its files. Returns true if it did anything. A failure is recorded and
+   * retried later (backing off), so one firm can never hold up the others (security review 32, R32-4). */
   async deleteOnce(): Promise<boolean> {
     const next = (await this.pool.query<{ id: string | null }>("SELECT huis.worker_next_firm_to_delete() AS id")).rows[0]?.id;
     if (next) {
-      // The database checks again, under a lock, that it is still due; NULL means it isn't (it paid a moment ago).
-      await this.pool.query("SELECT huis.worker_delete_firm($1)", [next]);
+      try {
+        // The database checks again, under a lock, that it is still due; NULL means it isn't (it paid a moment ago).
+        await this.pool.query("SELECT huis.worker_delete_firm($1)", [next]);
+      } catch (err) {
+        await this.failed(next, "rows", err);
+      }
       return true;
     }
     // Files go after the rows (the firm is already gone and nothing can open them); retried until done.
     const pending = (await this.pool.query<{ firm_id: string; prefix: string }>("SELECT * FROM huis.worker_firm_files_pending()")).rows[0];
     if (!pending) return false;
-    await this.files.deleteFirmPrefix(pending.prefix);
-    await this.pool.query("SELECT huis.worker_firm_files_deleted($1)", [pending.firm_id]);
+    try {
+      await this.files.deleteFirmPrefix(pending.prefix);
+      await this.pool.query("SELECT huis.worker_firm_files_deleted($1)", [pending.firm_id]);
+    } catch (err) {
+      await this.failed(pending.firm_id, "files", err);
+    }
     return true;
+  }
+
+  private async failed(firmId: string, stage: "rows" | "files", err: unknown): Promise<void> {
+    const msg = err instanceof Error ? `${err.name}: ${err.message}` : "failed";
+    console.error(`[huis-worker] trial deletion (${stage}) failed for a firm; will retry later`);
+    await this.pool.query("SELECT huis.worker_firm_deletion_failed($1, $2, $3)", [firmId, stage, msg.slice(0, 200)]);
   }
 
   /** One pass for the worker loop. Does nothing at all unless turned on. */
   async runOnce(): Promise<boolean> {
     if (!this.enabled) return false;
-    const queued = await this.queueDue();
-    return (await this.sendOnce()) || (await this.deleteOnce()) || queued > 0;
+    try {
+      const queued = await this.queueDue();
+      return (await this.sendOnce()) || (await this.deleteOnce()) || queued > 0;
+    } catch (err) {
+      // Never stop the rest of the worker's loop (search indexing and the rest).
+      console.error("[huis-worker] trial deletion pass failed:", err instanceof Error ? err.name : "error");
+      return false;
+    }
   }
 }
 
