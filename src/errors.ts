@@ -25,6 +25,18 @@ export class UnauthenticatedError extends Error {
 }
 
 /**
+ * The firm requires its staff to sign in with the firm's own Microsoft 365 or Google Workspace account, and this
+ * session's account isn't one (db/migrations/0039_signin_rules.sql).
+ */
+export class SignInRuleError extends UnauthenticatedError {
+  constructor() {
+    super();
+    this.message = "Your firm requires signing in with the firm's own Microsoft 365 or Google Workspace account.";
+    this.name = "SignInRuleError";
+  }
+}
+
+/**
  * An error whose message was written for the person using Huis. Only these
  * (and the classes above) are ever shown on screen; anything else becomes a
  * generic message so internal details never leak.

@@ -12,6 +12,6 @@ export async function GET(req: NextRequest) {
   return finishSignIn(req, "microsoft", async ({ code, verifier, nonce, redirectUri }) => {
     const idToken = await exchangeMicrosoftCode({ clientId: ms.clientId, clientSecret: ms.clientSecret, redirectUri, code, verifier });
     const id = await verifyMicrosoftIdToken(idToken, { clientId: ms.clientId, nonce });
-    return { provider: "microsoft", subject: id.subject, name: id.name, email: id.email };
+    return { provider: "microsoft", subject: id.subject, name: id.name, email: id.email, org: id.tenantId };
   });
 }

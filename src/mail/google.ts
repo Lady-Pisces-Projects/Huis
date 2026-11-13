@@ -90,7 +90,18 @@ async function tokenRequest(params: Record<string, string>): Promise<TokenRespon
 }
 
 /** Verifies signature, audience, issuer, nonce and expiry of a Google ID token. Identity key: Google's stable "sub". */
-export async function verifyGoogleIdToken(idToken: string, opts: { clientId: string; nonce: string; keys?: JWTVerifyGetKey }): Promise<{ subject: string; name: string | null; email: string | null }> {
+/**
+ * Google's "hd" claim: the Workspace (or Cloud organization) domain of the account, absent for personal accounts.
+ * Google: "You must check this claim when restricting access to a resource to only members of certain domains."
+ * Anything that isn't a plain domain name counts as none.
+ */
+export function hostedDomain(hd: unknown): string | null {
+  if (typeof hd !== "string") return null;
+  const d = hd.trim().toLowerCase();
+  return d.length <= 253 && /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/.test(d) ? d : null;
+}
+
+export async function verifyGoogleIdToken(idToken: string, opts: { clientId: string; nonce: string; keys?: JWTVerifyGetKey }): Promise<{ subject: string; name: string | null; email: string | null; hostedDomain: string | null }> {
   const { payload } = await jwtVerify(idToken, opts.keys ?? googleKeys(), {
     audience: opts.clientId, issuer: GOOGLE_ISSUERS, algorithms: ["RS256"], clockTolerance: 60,
     // jose checks exp only when present: require it (security review 29, R29-2).
@@ -105,6 +116,7 @@ export async function verifyGoogleIdToken(idToken: string, opts: { clientId: str
     subject: payload.sub,
     name: typeof payload.name === "string" && payload.name.trim() ? payload.name.trim().slice(0, 300) : null,
     email: typeof payload.email === "string" && payload.email_verified === true ? payload.email : null,
+    hostedDomain: hostedDomain(payload.hd),
   };
 }
 

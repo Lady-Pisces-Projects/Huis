@@ -12,7 +12,7 @@ export async function POST() {
   const session = await getSession();
   if (session) {
     await db()
-      .withFirm({ firmId: session.firmId, userId: session.userId }, async (s) => {
+      .withFirm({ firmId: session.firmId, userId: session.userId, skipSignInRule: true }, async (s) => {
         await s.client.query("SELECT huis.end_my_sessions()");
       })
       .catch(() => undefined);

@@ -9,7 +9,7 @@ import {
   type PendingPayload, type SessionPayload,
 } from "../src/auth/tokens";
 import { HuisDb, type FirmSession } from "../src/db/tenant";
-import { NotFoundError, PermissionDeniedError, UnauthenticatedError, UserFacingError } from "../src/errors";
+import { NotFoundError, PermissionDeniedError, SignInRuleError, UnauthenticatedError, UserFacingError } from "../src/errors";
 
 const globalForDb = globalThis as unknown as { huisDb?: HuisDb };
 
@@ -94,6 +94,7 @@ export async function withSession<T>(fn: (s: FirmSession) => Promise<T>): Promis
       fn,
     );
   } catch (err) {
+    if (err instanceof SignInRuleError) redirect("/signin?reason=org");
     if (err instanceof UnauthenticatedError) redirect("/signin?reason=expired");
     throw err;
   }

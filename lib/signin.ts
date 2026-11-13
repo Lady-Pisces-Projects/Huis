@@ -6,7 +6,8 @@ import { randomToken } from "../src/auth/microsoft";
 import { ADMIN_TTL_SECONDS, COOKIE, OAUTH_TTL_SECONDS, seal, unseal, type OAuthPayload } from "../src/auth/tokens";
 import { staffMember } from "../src/admin/staff";
 import { postFromHuis, signInReturnMatches } from "../src/auth/signin-check";
-import { acceptInvitation, resolveIdentity } from "../src/services/firms";
+import { acceptInvitation, signInAccounts } from "../src/services/firms";
+import { UserFacingError } from "../src/errors";
 import { db, setPendingCookie, setSessionCookie } from "./server";
 
 /**
@@ -20,7 +21,8 @@ const INVITE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 export type { SignInProvider } from "../src/auth/signin-check";
 import type { SignInProvider } from "../src/auth/signin-check";
 
-export interface VerifiedSignIn { provider: SignInProvider; subject: string; name: string; email: string | null }
+/** `org`: the organization from the verified token (Microsoft tenant id, Google Workspace domain, or ""). */
+export interface VerifiedSignIn { provider: SignInProvider; subject: string; name: string; email: string | null; org: string }
 
 
 /**
@@ -93,13 +95,23 @@ export async function finishSignIn(req: NextRequest, provider: SignInProvider,
     }
 
     if (oauth!.invite) {
-      const linked = await acceptInvitation(db(), oauth!.invite, identity.provider, identity.subject);
+      let linked: Awaited<ReturnType<typeof acceptInvitation>>;
+      try {
+        linked = await acceptInvitation(db(), oauth!.invite, identity.provider, identity.subject, identity.org);
+      } catch (err) {
+        if (err instanceof UserFacingError && err.status === 403) return go("/signin?reason=invite-org");
+        throw err;
+      }
       if (!linked) return go("/signin?reason=invite");
       await setSessionCookie({ ...linked, provider: identity.provider, subject: identity.subject });
       return go("/dashboard");
     }
 
-    const accounts = await resolveIdentity(db(), identity.provider, identity.subject);
+    // Each firm's sign-in rule (its own Microsoft 365 or Google Workspace only) is applied here and again on every
+    // request; firms that refuse this account are left out.
+    const all = await signInAccounts(db(), identity.provider, identity.subject, identity.org);
+    const accounts = all.filter((a) => a.allowed);
+    if (all.length > 0 && accounts.length === 0) return go("/signin?reason=org");
     if (accounts.length === 1) {
       const a = accounts[0]!;
       await setSessionCookie({ firmId: a.firmId, userId: a.userId, provider: identity.provider, subject: identity.subject });

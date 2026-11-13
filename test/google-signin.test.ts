@@ -35,7 +35,9 @@ async function token(over: Record<string, unknown> = {}, opts: { iss?: string; a
 describe("Google ID token checks", () => {
   it("accepts a valid token and keys the identity on Google's account id, not the email", async () => {
     const id = await verifyGoogleSignIn(await token(), { clientId: CLIENT_ID, nonce: "n-1", keys });
-    expect(id).toEqual({ provider: "google", subject: SUB, name: "Maria Lopez", email: "maria@lopezlaw.example" });
+    expect(id).toEqual({ provider: "google", subject: SUB, name: "Maria Lopez", email: "maria@lopezlaw.example", org: "lopezlaw.example" });
+    // A personal account has no hosted domain.
+    expect((await verifyGoogleSignIn(await token({ hd: undefined }), { clientId: CLIENT_ID, nonce: "n-1", keys })).org).toBe("");
   });
 
   it("refuses another app's token, a replay (wrong nonce), another issuer, an expired token and another key", async () => {
