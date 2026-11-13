@@ -12,7 +12,11 @@ export interface ObjectStore {
   get(key: string): Promise<Readable>;
   delete(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;
+  /** Deletes every object under a firm's prefix ("firm/<id>/"). Used only when a firm's data is deleted. */
+  deleteFirmPrefix(prefix: string): Promise<void>;
 }
+
+const FIRM_PREFIX = /^firm\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/$/;
 
 const KEY_PATTERN = /^[a-z0-9][a-z0-9/_.-]*$/;
 function checkKey(key: string): void {
@@ -55,6 +59,13 @@ export class LocalObjectStore implements ObjectStore {
     await rm(this.file(key), { force: true });
   }
 
+  async deleteFirmPrefix(prefix: string): Promise<void> {
+    if (!FIRM_PREFIX.test(prefix)) throw new Error("Invalid firm prefix");
+    const dir = path.resolve(this.root, prefix);
+    if (!dir.startsWith(path.resolve(this.root) + path.sep)) throw new Error("Invalid firm prefix");
+    await rm(dir, { recursive: true, force: true });
+  }
+
   async exists(key: string): Promise<boolean> {
     try {
       await stat(this.file(key));
@@ -91,6 +102,10 @@ export class EvidenceVault {
 
   delete(key: string): Promise<void> {
     return this.store.delete(key);
+  }
+
+  deleteFirmPrefix(prefix: string): Promise<void> {
+    return this.store.deleteFirmPrefix(prefix);
   }
 
   exists(key: string): Promise<boolean> {
