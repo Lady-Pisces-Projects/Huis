@@ -3,6 +3,7 @@ import type { FirmSession } from "../db/tenant";
 import { PermissionDeniedError, UserFacingError } from "../errors";
 import { analyze, type ClaimIn, type DamageIn, type FactIn, type Gap, type MatterIn, type SourceRef, type StrengthReport } from "../intelligence/strength";
 import { INTERNAL_ROLES } from "../security/permissions";
+import { discovery, opposition, type Discovery, type Opposition, type PersonIn } from "../intelligence/discovery";
 import { recordAudit } from "./audit";
 import { authoritiesByNode } from "./authorities";
 import { getContradictions } from "./contradictions";
@@ -49,7 +50,7 @@ type NodeRow = { id: string; kind: string; label: string; details: string };
  * query per claim). The same rules as Case DNA's claim view: confirmed elements with a confirmed "element of"
  * link; facts that aren't rejected, counted only when the fact and its link are both confirmed.
  */
-async function gather(s: FirmSession, matterId: string): Promise<{ input: MatterIn; truncated: boolean }> {
+async function gather(s: FirmSession, matterId: string): Promise<{ input: MatterIn; truncated: boolean; people: PersonIn[]; suggestedPeople: number }> {
   const claimRows = (await s.client.query<NodeRow>(
     `SELECT id, kind, label, details FROM huis.dna_nodes WHERE matter_id = $1 AND status = 'confirmed' AND kind IN ('claim', 'defense')
       ORDER BY created_at, id LIMIT ${MAX_CLAIMS + 1}`, [matterId])).rows;
@@ -86,6 +87,23 @@ async function gather(s: FirmSession, matterId: string): Promise<{ input: Matter
       witnessesOf.set(r.fact_id, list);
     }
   }
+
+  // People and organizations in Case DNA, with their links to counted facts (for discovery and opposition, part 2).
+  const peopleRows = (await s.client.query<{ id: string; kind: "person" | "organization"; label: string; role: string | null }>(
+    `SELECT id, kind, label, role FROM huis.dna_nodes WHERE matter_id = $1 AND status = 'confirmed' AND kind IN ('person', 'organization')
+      ORDER BY label LIMIT 2000`, [matterId])).rows;
+  const personLinks = new Map<string, { factId: string; relation: "witness_to" | "involves" }[]>();
+  if (factIds.length && peopleRows.length) {
+    const { rows } = await s.client.query<{ person_id: string; fact_id: string; relation: "witness_to" | "involves" }>(
+      `SELECT CASE WHEN l.from_id = ANY($1::uuid[]) THEN l.to_id ELSE l.from_id END AS person_id,
+              CASE WHEN l.from_id = ANY($1::uuid[]) THEN l.from_id ELSE l.to_id END AS fact_id, l.relation
+         FROM huis.dna_links l
+        WHERE (l.from_id = ANY($1::uuid[]) OR l.to_id = ANY($1::uuid[])) AND l.relation IN ('witness_to', 'involves')
+          AND l.status = 'confirmed' AND (l.from_id = ANY($2::uuid[]) OR l.to_id = ANY($2::uuid[])) LIMIT 20000`,
+      [factIds, peopleRows.map((r) => r.id)]);
+    for (const r of rows) personLinks.set(r.person_id, [...(personLinks.get(r.person_id) ?? []), { factId: r.fact_id, relation: r.relation }]);
+  }
+  const people: PersonIn[] = peopleRows.map((r) => ({ ...r, links: personLinks.get(r.id) ?? [] }));
 
   const authorities = await authoritiesByNode(s, matterId);
   const refs = (id: string) => (authorities.get(id) ?? []).map((a) => ({ citation: a.authority.citation, url: a.authority.url, verified: a.authority.verified !== null, stance: a.stance }));
@@ -134,7 +152,19 @@ async function gather(s: FirmSession, matterId: string): Promise<{ input: Matter
       evidence: { total: p.total, unread: p.unread },
     },
     truncated: claimRows.length > MAX_CLAIMS,
+    people,
+    suggestedPeople: (await s.client.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM huis.dna_nodes WHERE matter_id = $1 AND status = 'suggested' AND kind IN ('person', 'organization')", [matterId])).rows[0]!.n,
   };
+}
+
+/** Part 2: "What are we missing?" and "If I were opposing counsel", from the same confirmed Case DNA. */
+export async function discoveryAndOpposition(s: FirmSession, matterId: string): Promise<{ discovery: Discovery; opposition: Opposition; truncated: boolean }> {
+  reader(s);
+  await getMatter(s, matterId);
+  const g = await gather(s, matterId);
+  const report = analyze(g.input);
+  return { discovery: discovery(g.input, report, g.people, g.suggestedPeople), opposition: opposition(g.input, report), truncated: g.truncated };
 }
 
 async function analyzeMatterStrength(s: FirmSession, matterId: string): Promise<StrengthReport & { truncated: boolean }> {

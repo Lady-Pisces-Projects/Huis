@@ -5,7 +5,7 @@ Spec: `docs/source/phase-11-case-outcome-intelligence.md`. Built in parts; each 
 | Part | What | Status |
 |---|---|---|
 | 11.1 | **Case strength, the holes in the case, and next steps** (with "Why did Huis say this?" and attorney override) | Built, tested and reviewed (security review 34: 6 findings, all fixed) |
-| 11.2 | Discovery gap analysis ("What are we missing?") and opposition analysis ("If I were opposing counsel") | Later |
+| 11.2 | Discovery gap analysis ("What are we missing?") and opposition analysis ("If I were opposing counsel") | Built and tested; security review 36 next |
 | 11.3 | **Case value ranges and settlement intelligence** | **Waiting for a source of real verdict and settlement data** (decided by Tracy, 13 November 2026: no dollar values until then) |
 | 11.4 | Scenario modelling, what-if, trial readiness | Later |
 | — | Pricing (premium add-on: per-report fee, monthly add-on, or credits) | **Tracy's decision**; part 11.1 is available to every plan for now |
@@ -39,3 +39,26 @@ Also in 0045: `huis_security` may delete gap reviews (for an unpaid trial's dele
 **Security review 34:** 6 findings (1 High: the overall rating could read Strong while a claim was Weak), all fixed; regression tests in `test/security-review-34.test.ts` (7 tests). See `SECURITY-REVIEW-2026-11.md`.
 
 **Tests:** `test/case-strength.test.ts` (6 tests): the element scores and their reasons, claim ratings, gaps ranked with suggested actions, no "probability" wording, "insufficient information" instead of an invented score; on a real Matter (uploaded documents, a template claim, facts from passages, a witness): the scores, sources and gaps, setting a gap aside and putting it back (audited, scores unchanged); clients refused, read-only staff can read but not review, nobody outside an ethical wall, and gap reviews can't be written around the rules or for another firm's Matter.
+
+## Part 2 — What are we missing? and If I were opposing counsel
+
+Two pages linked from **Case strength**: `/matters/<id>/missing` and `/matters/<id>/opposition`. Same rules of the road as part 1: firm staff only, attorney work product, worked out each time from **confirmed** Case DNA (`src/intelligence/discovery.ts`), no AI, nothing invented, and every item says why.
+
+**What are we missing?**
+
+| Section | Rule |
+|---|---|
+| Documents to request | One draft request for production for each claim element with fewer than two documents or emails behind it, worded by the element's name (causation: the decision, approvals, people consulted and reasons; adverse action: the personnel file and separation paperwork; and so on) |
+| Requests for admission (drafts) | "Admit that …" for each confirmed supporting fact with a document behind it, and "Admit that the document … is a true and correct copy" for each such document (up to 30) |
+| Deposition targets | People linked (witness to, or involved in) to a fact that contradicts an element, a fact about the adverse action or causation, or a fact supporting a defense; most reasons first |
+| Witness gaps | Supported elements with no witness; people in Case DNA linked to no fact; people Huis suggested that nobody has reviewed |
+| Organizations | Organizations in Case DNA, with a reminder that a non-party's records need a subpoena (Huis doesn't know who the parties are) |
+| Expert needs | Damages recorded (an economist or vocational expert); a disability element (a medical expert) |
+| Authentication | Every document or email the claims rely on, most relied on first, with how it might come in |
+| What Huis can't see | Discovery already served and answered isn't tracked yet, so nothing is said about what is outstanding |
+
+Requests are drafts to edit, never to serve as written; the page says so.
+
+**If I were opposing counsel** — arguments the gaps in the confirmed evidence invite, strongest first, each with *why they could say it*, *how do we counter it* and *evidence needed*: an element with no evidence (Critical); an element resting on the client's word or attorney notes (High); an element standing on one document (Medium); inconsistent evidence on an element (High); each defense with support (High or Medium); another cause for the decision, when a causation element scores under 80 or a defense is recorded; speculative or unsupported damages; failure to mitigate when nothing records a job search or new work. It says what it doesn't check: limitations, exhaustion and other procedural defenses, and how persuasive any fact is.
+
+**Tests:** `test/discovery-opposition.test.ts` (5 tests): drafts only where evidence is thin, admissions from documented facts and their documents, deposition targets with reasons, witness gaps, organizations, experts and authentication; arguments ranked with reasons and counters, mitigation and speculative damages; on a real Matter, from confirmed Case DNA, and refused to a client.
