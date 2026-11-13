@@ -30,6 +30,8 @@ export interface TestDatabase {
   worker: pg.Pool;
   /** Stripe webhook connection (huis_billing role: can only record Stripe's state). */
   billing: pg.Pool;
+  /** Huis admin portal connection (huis_platform role: account functions only). */
+  platform: pg.Pool;
   /** Superuser connection, used only to simulate attacks such as tampering. */
   admin: pg.Pool;
   drop(): Promise<void>;
@@ -63,20 +65,26 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   const billingUser = `${name}_billing`;
   await admin.query(`CREATE ROLE ${billingUser} LOGIN PASSWORD '${appPassword}' NOSUPERUSER NOBYPASSRLS IN ROLE huis_billing`);
   const billing = new pg.Pool({ connectionString: withCredentials(adminUrl, billingUser, appPassword), max: 2 });
+  const platformUser = `${name}_platform`;
+  await admin.query(`CREATE ROLE ${platformUser} LOGIN PASSWORD '${appPassword}' NOSUPERUSER NOBYPASSRLS IN ROLE huis_platform`);
+  const platform = new pg.Pool({ connectionString: withCredentials(adminUrl, platformUser, appPassword), max: 2 });
 
   // Dropping the database at teardown ends any idle connections; that's expected.
   admin.on("error", () => undefined);
   worker.on("error", () => undefined);
   billing.on("error", () => undefined);
+  platform.on("error", () => undefined);
   return {
     db,
     worker,
     billing,
+    platform,
     admin,
     async drop() {
       await db.close();
       await worker.end();
       await billing.end();
+      await platform.end();
       await admin.end();
       const c = new pg.Client({ connectionString: ADMIN_URL });
       await c.connect();
@@ -84,6 +92,7 @@ export async function createTestDatabase(): Promise<TestDatabase> {
       await c.query(`DROP ROLE IF EXISTS ${appUser}`);
       await c.query(`DROP ROLE IF EXISTS ${workerUser}`);
       await c.query(`DROP ROLE IF EXISTS ${billingUser}`);
+      await c.query(`DROP ROLE IF EXISTS ${platformUser}`);
       await c.end();
     },
   };

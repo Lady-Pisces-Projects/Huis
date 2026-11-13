@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { authConfig } from "../src/auth/config";
 import { randomToken } from "../src/auth/microsoft";
-import { COOKIE, OAUTH_TTL_SECONDS, seal, unseal, type OAuthPayload } from "../src/auth/tokens";
+import { ADMIN_TTL_SECONDS, COOKIE, OAUTH_TTL_SECONDS, seal, unseal, type OAuthPayload } from "../src/auth/tokens";
+import { staffMember } from "../src/admin/staff";
 import { postFromHuis, signInReturnMatches } from "../src/auth/signin-check";
 import { acceptInvitation, resolveIdentity } from "../src/services/firms";
 import { db, setPendingCookie, setSessionCookie } from "./server";
@@ -29,7 +30,7 @@ export interface VerifiedSignIn { provider: SignInProvider; subject: string; nam
  */
 export async function startSignIn(provider: SignInProvider,
   authorizeUrl: (p: { state: string; nonce: string; verifier: string; redirectUri: string }) => string,
-  invite?: string): Promise<NextResponse> {
+  invite?: string, purpose?: "admin"): Promise<NextResponse> {
   const cfg = authConfig();
   const state = randomToken();
   const nonce = randomToken();
@@ -37,7 +38,7 @@ export async function startSignIn(provider: SignInProvider,
   const jar = await cookies();
   jar.set(
     COOKIE.oauth,
-    await seal({ state, nonce, verifier, provider, ...(invite && INVITE_TOKEN.test(invite) ? { invite } : {}) },
+    await seal({ state, nonce, verifier, provider, ...(purpose === "admin" ? { purpose } : invite && INVITE_TOKEN.test(invite) ? { invite } : {}) },
       cfg.sessionKey, "oauth", OAUTH_TTL_SECONDS),
     { httpOnly: true, secure: cfg.secureCookies, sameSite: "lax", path: "/api/auth", maxAge: OAUTH_TTL_SECONDS },
   );
@@ -82,6 +83,14 @@ export async function finishSignIn(req: NextRequest, provider: SignInProvider,
   try {
     const identity = await verify({ code: code!, verifier: oauth!.verifier, nonce: oauth!.nonce, redirectUri: `${cfg.baseUrl}/api/auth/callback/${provider}` });
     if (identity.provider !== provider) throw new Error("provider mismatch");
+
+    // Huis staff signing in to the admin portal: never creates, joins or opens a firm.
+    if (oauth!.purpose === "admin") {
+      if (!staffMember(identity.provider, identity.subject)) return go("/admin/signin?reason=denied");
+      jar.set(COOKIE.admin, await seal({ provider: identity.provider, subject: identity.subject }, cfg.sessionKey, "admin", ADMIN_TTL_SECONDS),
+        { httpOnly: true, secure: cfg.secureCookies, sameSite: "lax", path: "/", maxAge: ADMIN_TTL_SECONDS });
+      return go("/admin");
+    }
 
     if (oauth!.invite) {
       const linked = await acceptInvitation(db(), oauth!.invite, identity.provider, identity.subject);

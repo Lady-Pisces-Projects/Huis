@@ -6,10 +6,11 @@ import { startSignIn, startSignInFromInvite } from "../../../../../lib/signin";
 export const dynamic = "force-dynamic";
 
 /** Sign in with Google (the same Google OAuth client as Gmail; redirect URI /api/auth/callback/google). */
-export async function GET() {
+export async function GET(req: NextRequest) {
   const g = authConfig().google;
   if (!g) return new NextResponse("Google sign-in is not configured yet.", { status: 503 });
-  return startSignIn("google", (p) => googleSignInAuthorizeUrl({ clientId: g.clientId, ...p }));
+  // ?purpose=admin: Huis staff signing in to the admin portal.
+  return startSignIn("google", (p) => googleSignInAuthorizeUrl({ clientId: g.clientId, ...p }), undefined, req.nextUrl.searchParams.get("purpose") === "admin" ? "admin" : undefined);
 }
 
 /** An invitation is accepted only by POST from the invitation page. */

@@ -491,6 +491,23 @@ Still open from this review: a **100%-off promotion code** would make Stripe rep
 
 Also fixed: a Google name longer than sign-up allows (200 characters) is trimmed, so onboarding doesn't fail on it. Still open from this review: **enforcing multi-factor sign-in** (the users table has `mfa_required`, but nothing checks it; personal Google accounts may have no organisation-managed MFA). Options: check the token's `amr` claim, or let a firm limit sign-in to its own Workspace or Microsoft 365 domain.
 
+## Thirtieth review — the Huis admin portal (Phase 10 part 6)
+
+**Result:** no way for Huis staff to reach client content. The portal's database login (`huis_platform`) has no table rights, can create nothing, and can call only the `platform_*` account functions; search is parameterised and escaped; history shows account events only; `disabled` can't be set; each cookie is sealed with its purpose, so no other Huis cookie works as the admin cookie; an admin sign-in never creates or joins a firm and refuses anyone not in `HUIS_STAFF`; every change re-checks staff, takes the staff name from `HUIS_STAFF` and requires a note. The reviewer confirmed 1 High and 1 Medium problem with working tests. **Both fixed**, in `db/migrations/0038_review30.sql` and the firm page; regression tests in `test/security-review-30.test.ts` (4 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R30-1 | High | A trial end in the past was accepted (only the 90-day upper limit was checked), so a typo or a stolen staff session could give a firm a deletion date that had already passed, with no warnings, even a firm that had subscribed in Stripe during its trial | A trial end must be in the future (the date field also refuses past days), and a firm with a Stripe subscription keeps Stripe's dates: change the trial in Stripe |
+| R30-2 | Medium | "Plan by agreement" was refused only for `active`, `trialing` and `past_due` Stripe subscriptions; an `unpaid` or `paused` one could restart when its invoice was paid, silently turning an Enterprise agreement back into Professional and charging the firm twice | Refused whenever a Stripe subscription exists that isn't finished (`canceled` or `incomplete_expired`) — `huis.platform_stripe_live` |
+
+Also fixed from the reviewer's unconfirmed concerns: staff notes no longer block deleting a firm (the note keeps its text, without the firm link, `ON DELETE SET NULL`); `huis.lock_firm_usage` is no longer callable by every role through Postgres's default PUBLIC grant; the suspend form now says Stripe keeps charging when the firm pays through Stripe.
+
+Still open from this review, for part 2b (deletion) and later:
+- Restoring a trial firm suspended past its trial end + 30 days makes it due for deletion at once; part 2b must not delete without the warnings, whatever the dates say.
+- Part 2b decides whether staff notes about a deleted firm are kept (they hold account remarks, never client content).
+- Signing out of the admin portal clears the cookie but doesn't revoke it: a copied cookie works for up to an hour. Removing someone from `HUIS_STAFF` ends their access at once.
+- The staff name in the staff log is supplied by the app, not enforced by the database: anyone holding the platform database login could write any name.
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — Microsoft sign-in doesn't yet require proof of MFA. Plan: require the firm's Microsoft MFA (Conditional Access) or a Huis passkey. Part of the end-of-build Azure/hosting step.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.
