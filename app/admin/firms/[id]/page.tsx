@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "../../../../lib/admin";
-import { adminSetAgreementAction, adminSetStatusAction, adminSetTrialEndAction } from "../../../../lib/admin-actions";
+import { adminClearSignInRuleAction, adminSetAgreementAction, adminSetStatusAction, adminSetTrialEndAction } from "../../../../lib/admin-actions";
 import { getFlash } from "../../../../lib/server";
 import { date, formatBytes } from "../../../../lib/ui";
 import { standing, TONE } from "../../../../src/admin/standing";
-import { getFirm } from "../../../../src/services/admin";
+import { getFirm, getSignInRule } from "../../../../src/services/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,7 @@ export default async function AdminFirmPage({ params, searchParams }: { params: 
   const { id } = await params;
   const { platform } = await requireStaff();
   const got = await getFirm(platform, id);
+  const signInRule = got ? await getSignInRule(platform, id) : null;
   if (!got) notFound();
   const flash = await getFlash((await searchParams).f);
   const { firm: f, history } = got;
@@ -78,6 +79,17 @@ export default async function AdminFirmPage({ params, searchParams }: { params: 
           <input id="statusNote" name="note" required maxLength={500} />
           <button type="submit" className={f.status === "active" ? "danger" : undefined}>{f.status === "active" ? "Suspend" : "Restore"}</button>
         </form>
+        {signInRule ? (
+          <form action={adminClearSignInRuleAction} className="card">
+            <h3>Sign-in rule</h3>
+            <input type="hidden" name="firmId" value={f.firmId} />
+            <p>Staff must sign in with {signInRule.provider === "google" ? `the Google Workspace domain ${signInRule.org}` : `the Microsoft 365 organization ${signInRule.org}`} (since {date(signInRule.setAt)}).</p>
+            <p className="notice">Turn it off only to recover a firm that can no longer sign in (for example, its domain changed), after confirming who is asking. The firm&apos;s owner can turn it on again.</p>
+            <label htmlFor="ruleNote">Note</label>
+            <input id="ruleNote" name="note" required maxLength={500} />
+            <button type="submit" className="danger">Turn off the sign-in rule</button>
+          </form>
+        ) : null}
         <form action={adminSetAgreementAction} className="card">
           <h3>Plan by agreement</h3>
           <input type="hidden" name="firmId" value={f.firmId} />
