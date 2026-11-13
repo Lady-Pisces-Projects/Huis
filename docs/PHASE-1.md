@@ -73,19 +73,21 @@ For attorneys whose firm uses Google Workspace, or a personal Google account. Mi
 
 ## Sign-in security (added 12 November 2026)
 
-A firm can require its staff to sign in with the **firm's own Microsoft 365 organization or Google Workspace domain** (Users & Access → Sign-in security). Personal Gmail and Outlook accounts are then refused for staff, and the firm's own account rules apply to every staff sign-in: its required multi-factor sign-in, password rules, and switching off a departing employee's account (which ends their Huis access too). Clients, co-counsel, expert witnesses and authorized third parties are never held to it.
+A firm can require its staff to sign in with the **firm's own Microsoft 365 organization or Google Workspace domain** (Users & Access → Sign-in security). Personal Gmail and Outlook accounts are then refused for staff, and the firm's own account rules apply to every staff sign-in: its required multi-factor sign-in, password rules, and switching off a departing employee's account (which stops them signing in to Huis; a Huis session already open lasts up to 8 hours, so also use Remove access or Sign out everywhere to end it at once). Clients, co-counsel, expert witnesses and authorized third parties are never held to it.
 
 | Piece | Where | Guarantee |
 |---|---|---|
 | The organization | Microsoft: the tenant in the identity (`<tenant>:<user>`), read by the database itself. Google: the verified token's `hd` claim, recorded in `huis.identity_orgs` at each sign-in | Google: "You must check this claim when restricting access to a resource to only members of certain domains"; absent for personal accounts. The app can't read or write `identity_orgs` except through `huis.signin_accounts` and `huis.accept_invitation` |
 | Turning it on | `huis.set_signin_rule` (0039), `/users/sign-in` | Firm owner, managing partners and firm administrators only. The organization is the one the person turning it on signed in with (no ids typed), so nobody can lock their firm out; a personal account (Gmail, or Microsoft's personal-account tenant) can't turn it on. The page lists the staff who would be signed out first. Audited |
-| Every request | `huis.session_signin_allowed`, `src/db/tenant.ts` | Checked with the session: turning the rule on, or a Google account leaving the firm's Workspace, ends other staff sign-ins at once ("Your firm requires signing in with the firm's own account") |
+| Every request | `huis.session_signin_allowed`, `src/db/tenant.ts` | Checked with the session: turning the rule on ends other staff sign-ins at once ("Your firm requires signing in with the firm's own account"). A Google account that leaves the firm's Workspace is refused from its next Google sign-in (Huis learns the domain only at sign-in). Signing out works even when the rule refuses the account |
 | Sign-in | `huis.signin_accounts`, `lib/signin.ts` | Firms that refuse the account are left out of the sign-in choices |
 | Invitations | `huis.accept_invitation(token, provider, subject, org)` | A staff invitation can't be accepted with an account from outside the organization, and isn't used up by the attempt. The 3-argument form is no longer callable by the app |
+| Coming back | `huis.issue_relink_invitation` (0040), Sign-in security page | A firm owner (only) can give someone the rule leaves out a one-time "sign in again" link; it is accepted only with an account that meets the rule, moves their existing account (Matter access, history) to it, ends their old sessions and is audited. Owner only because it re-links an existing account |
+| Where the Google domain is trusted | `lib/signin.ts` | Microsoft's tenant is part of the identity, so the database checks it itself. Google's domain is taken from the token the app verified: like the rest of sign-in, it relies on the app |
 
 **Multi-factor sign-in.** Huis doesn't claim to check it itself: Google's ID token doesn't say whether it was used, and Microsoft documents the `amr` claim (which would) for its access tokens; a 2022 Microsoft answer says it is only in version 1.0 tokens, and Huis uses version 2.0. The firm's organization enforces it (Microsoft Entra security defaults or Conditional Access; Google 2-Step Verification enforcement), and this rule makes every staff sign-in go through it. A Huis passkey for firms without a managed organization is a later option.
 
-**Tests:** `test/signin-rules.test.ts` (11 tests).
+**Tests:** `test/signin-rules.test.ts` (11 tests) and `test/security-review-31.test.ts` (review 31).
 
 ## Web app (Next.js)
 

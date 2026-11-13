@@ -4,7 +4,7 @@ import { SignInRuleError, UserFacingError } from "../src/errors";
 import { hostedDomain } from "../src/mail/google";
 import { acceptInvitation, signInAccounts, signUpFirm } from "../src/services/firms";
 import { getSignInRule, setSignInRule } from "../src/services/signinRule";
-import { inviteUser } from "../src/services/users";
+import { inviteUser, issueInvitation } from "../src/services/users";
 import { createTestDatabase, type TestDatabase } from "./helpers";
 
 /*
@@ -163,5 +163,29 @@ describe("with the rule on", () => {
     await t.db.withFirm(f.owner, (s) => setSignInRule(s, "microsoft"));
     const a = await invite(f, "attorney", "Hal Around");
     await expect(t.db.withoutFirm((c) => c.query("SELECT * FROM huis.accept_invitation($1, 'microsoft', $2)", [a.invitationToken, ms(OTHER_TENANT)]))).rejects.toThrow();
+  });
+
+  it("a new sign-in link: owners only, only for someone the rule leaves out, only with a compliant account, never forged", async () => {
+    const f = await firmOwnedBy("microsoft", ms(TENANT));
+    const adm = await invite(f, "firm_admin", "Ida Admin");
+    const admin = (await acceptInvitation(t.db, adm.invitationToken, "microsoft", ms(TENANT)))!;
+    const a = await invite(f, "attorney", "Jo Elsewhere");
+    await acceptInvitation(t.db, a.invitationToken, "microsoft", ms(OTHER_TENANT));
+    // Not while the rule lets them in (and no rule = nobody is left out).
+    await expect(t.db.withFirm(f.owner, (s) => issueInvitation(s, a.id))).rejects.toMatchObject({ status: 403 });
+    await t.db.withFirm(f.owner, (s) => setSignInRule(s, "microsoft"));
+    // A firm administrator can't (it re-links an existing account, with its Matter access).
+    await expect(t.db.withFirm(admin, (s) => issueInvitation(s, a.id))).rejects.toMatchObject({ status: 403 });
+    // Nor can the app write a re-link invitation itself.
+    await expect(t.db.withFirm(f.owner, (s) => s.client.query(
+      "INSERT INTO huis.user_invitations (firm_id, user_id, token_hash, created_by, expires_at, relink) VALUES ($1, $2, repeat('a', 64), $3, now() + interval '1 day', true)",
+      [f.firmId, a.id, f.ownerUserId]))).rejects.toThrow();
+    const token = await t.db.withFirm(f.owner, (s) => issueInvitation(s, a.id));
+    await expect(acceptInvitation(t.db, token, "google", gid(), "")).rejects.toMatchObject({ status: 403 });
+    const back = await acceptInvitation(t.db, token, "microsoft", ms(TENANT));
+    expect(back?.userId).toBe(a.id);
+    expect(await acceptInvitation(t.db, token, "microsoft", ms(TENANT))).toBeNull(); // works once
+    const audit = await t.admin.query("SELECT action FROM huis.audit_events WHERE firm_id = $1 AND target_id = $2 ORDER BY occurred_at", [f.firmId, a.id]);
+    expect(audit.rows.map((r) => r.action)).toEqual(expect.arrayContaining(["user.relink_invitation_issued", "user.relinked"]));
   });
 });

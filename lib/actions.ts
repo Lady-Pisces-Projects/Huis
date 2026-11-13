@@ -756,3 +756,14 @@ export async function setSignInRuleAction(fd: FormData): Promise<void> {
     await setSignInRule(s, provider);
   }));
 }
+
+/** Sign-in security: a one-time link for someone the firm's sign-in rule leaves out (firm owners only). */
+export async function relinkAction(fd: FormData): Promise<void> {
+  return act("/users/sign-in", "New sign-in link created.", () => withSession(async (s) => {
+    const token = await issueInvitation(s, text(fd, "userId") ?? "");
+    return {
+      message: "Send this one-time link to them. They must open it and sign in with your firm's own account; it works once, within 7 days, and is shown only once.",
+      secretLink: inviteLink(token),
+    };
+  }));
+}

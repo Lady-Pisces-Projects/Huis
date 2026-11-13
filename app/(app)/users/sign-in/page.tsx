@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { setSignInRuleAction } from "../../../../lib/actions";
+import { relinkAction, setSignInRuleAction } from "../../../../lib/actions";
 import { getFlash, withSession } from "../../../../lib/server";
 import { FlashBanner } from "../../../../lib/ui";
 import { getSignInRule } from "../../../../src/services/signinRule";
@@ -18,10 +18,10 @@ export default async function SignInSecurity({ searchParams }: { searchParams: P
   const flash = await getFlash((await searchParams).f);
   const view = await withSession(async (s) => {
     if (!["firm_owner", "managing_partner", "firm_admin"].includes(s.actor.role)) return null;
-    return getSignInRule(s);
+    return { ...(await getSignInRule(s)), isOwner: s.actor.role === "firm_owner" };
   });
   if (!view) notFound();
-  const { rule, me, staff } = view;
+  const { rule, me, staff, isOwner } = view;
   const myProvider = me.provider === "microsoft" || me.provider === "google" ? me.provider : null;
   const myOrgUsable = !!myProvider && me.org !== "" && me.org !== PERSONAL_MS;
   const leftOut = rule ? staff.filter((p) => p.allowed === false) : [];
@@ -34,7 +34,8 @@ export default async function SignInSecurity({ searchParams }: { searchParams: P
       <p className="sub">
         Require your staff to sign in with your firm&apos;s own Microsoft 365 or Google Workspace account. Personal Gmail and Outlook
         accounts are then refused, and your organization&apos;s own rules apply to every sign-in: its required multi-factor sign-in,
-        password rules, and switching off a departing employee&apos;s account, which ends their Huis access too.
+        password rules, and switching off a departing employee&apos;s account, which stops them signing in to Huis (a Huis session
+        already open lasts up to 8 hours: use Remove access or Sign out everywhere on Users &amp; Access to end it at once).
       </p>
       <FlashBanner flash={flash} />
 
@@ -59,7 +60,7 @@ export default async function SignInSecurity({ searchParams }: { searchParams: P
             </p>
             {wouldLeaveOut.length > 0 ? (
               <div className="flash error">
-                These staff signed in with another account and will be signed out until they sign in with your firm&apos;s account:{" "}
+                These staff signed in with another account and will be signed out until they sign in with your firm&apos;s account (an owner can then give each a new sign-in link):{" "}
                 {wouldLeaveOut.map((p) => p.fullName).join(", ")}.
               </div>
             ) : null}
@@ -69,16 +70,35 @@ export default async function SignInSecurity({ searchParams }: { searchParams: P
         {!rule && !myOrgUsable ? (
           <p className="notice">
             To turn this on, sign in with your firm&apos;s own Microsoft 365 or Google Workspace account (not a personal Gmail or
-            Outlook account). Huis takes the organization from your own sign-in, so you can&apos;t lock yourself out.
+            Outlook account). Huis takes the organization from your own sign-in, so you can&apos;t lock yourself out, and at least one firm owner must sign in with the same organization.
           </p>
         ) : null}
 
+        {rule && leftOut.length > 0 ? (
+          <div className="flash error">
+            <p>Signed out until they sign in again with your firm&apos;s account:</p>
+            <ul>
+              {leftOut.map((p) => (
+                <li key={p.userId}>
+                  {p.fullName}{" "}
+                  {isOwner ? (
+                    <form action={relinkAction} style={{ display: "inline" }}>
+                      <input type="hidden" name="userId" value={p.userId} />
+                      <button type="submit" className="secondary">New sign-in link</button>
+                    </form>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            <p className="notice">
+              {isOwner ? "A new sign-in link moves their existing account (and its Matter access) to the firm account they sign in with, so send it only to them."
+                : "A firm owner can give each of them a new sign-in link."}
+            </p>
+          </div>
+        ) : null}
         {rule ? (
           <form action={setSignInRuleAction}>
             <input type="hidden" name="provider" value="any" />
-            {leftOut.length > 0 ? (
-              <p className="flash error">Signed out until they use your firm&apos;s account: {leftOut.map((p) => p.fullName).join(", ")}.</p>
-            ) : null}
             <button type="submit" className="danger">Allow any Microsoft or Google account</button>
           </form>
         ) : null}

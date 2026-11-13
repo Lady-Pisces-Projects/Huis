@@ -81,6 +81,13 @@ export async function issueInvitation(s: FirmSession, userId: string): Promise<s
   );
   const target = rows[0];
   if (!target) throw new NotFoundError("User");
+  if (target.auth_subject && target.status === "active") {
+    // Someone the firm's sign-in rule leaves out: a firm owner can give them a one-time link to sign in again with
+    // the firm's own account (the database checks who may, and for whom: security review 31).
+    const token = randomBytes(32).toString("base64url");
+    await s.client.query("SELECT huis.issue_relink_invitation($1, $2)", [userId, createHash("sha256").update(token).digest("hex")]);
+    return token;
+  }
   if (target.auth_subject || target.status !== "active") {
     throw new UserFacingError("This person already has access or is disabled.");
   }
