@@ -7,6 +7,7 @@ import { EvidenceProcessor } from "./processor";
 import { sandboxMode } from "../extract/sandbox";
 import { MailWorker } from "../mail/worker";
 import { IntegrationWorker } from "../integrations/worker";
+import { emailSenderFromEnv, trialDeletionEnabled, TrialDeletionWorker } from "../billing/trialDeletion";
 
 /**
  * Evidence worker process. Run alongside the web app:
@@ -49,13 +50,17 @@ async function main() {
   // Court date reminders. Email, SMS and push senders are set up with production hosting (O-2);
   // until then those reminders wait, visibly, and are sent once a sender exists.
   const alerts = new CourtAlertWorker(pool, {}, `${(process.env.HUIS_BASE_URL ?? "").replace(/\/$/, "")}/alerts`);
+  // Phase 10 part 2b: unpaid trials are deleted 30 days after the trial ends, after three warning emails.
+  // Off unless HUIS_TRIAL_DELETION=on; never deletes without the warnings having been sent.
+  const deletion = new TrialDeletionWorker(pool, evidenceVault(), emailSenderFromEnv(), process.env.HUIS_BASE_URL ?? "");
+  console.log(`[huis-worker] unpaid-trial deletion is ${trialDeletionEnabled() ? "ON" : "off (HUIS_TRIAL_DELETION is not 'on')"}`);
   let stopping = false;
   for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => { stopping = true; });
 
   console.log(`[huis-worker] started with ${scanner.name}`);
   while (!stopping) {
     // Evidence first (scans and reading), then filing requests and integration listings/imports, then mailbox sync, then the Matter Brain (so indexing never holds up mail).
-    const did = await (async () => (await processor.runOnce()) || (await mail.fileOnce()) || (await integrations.runOnce()) || (await mail.syncOnce()) || (await alerts.runOnce()) || (await brain.indexOnce()))().catch((e) => {
+    const did = await (async () => (await processor.runOnce()) || (await mail.fileOnce()) || (await integrations.runOnce()) || (await mail.syncOnce()) || (await alerts.runOnce()) || (await deletion.runOnce()) || (await brain.indexOnce()))().catch((e) => {
       console.error("[huis-worker] error:", e instanceof Error ? e.message : e);
       return false;
     });

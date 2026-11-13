@@ -521,6 +521,20 @@ Still open from this review, for part 2b (deletion) and later:
 
 Still open from this review: refused sign-ins and invitation attempts aren't recorded; a connected mailbox of someone the rule leaves out keeps syncing (connecting a mailbox doesn't check the rule); a firm administrator can turn off a rule an owner set; Google users who last signed in before this change show as personal until their next sign-in (fails closed). The Google domain is taken from the token the app verified, so that side relies on the app, like the rest of sign-in.
 
+## Thirty-second review — Deleting an unpaid trial's data (Phase 10 part 2b)
+
+**Result:** only the worker login can run the deletion; the guard bypass is tied to the deleting transaction and checks each row's firm; the moment of deletion is re-checked under a lock; a firm that ever paid is never deleted; all tables without a firm id are handled, there are no reference cycles, every file is under `firm/<id>/` and the prefix check is exact; the full made-up firm is deleted to the last row. The reviewer confirmed 2 High, 2 Medium and 1 Low problem with working tests. **All fixed**, in `db/migrations/0042_review32.sql` and `src/billing/trialDeletion.ts`; regression tests in `test/security-review-32.test.ts` (8 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R32-1 | High | A trial firm whose Stripe subscription could still charge (trialing, past due, unpaid, paused) was deleted, and Stripe could then take a payment for a deleted firm | Held (no date, warnings or deletion) until Stripe reports the subscription finished |
+| R32-2 | High | Warnings sent before Huis suspended a firm still counted after it was restored: deleted seconds after the restore, with no new email | Deletion rounds: becoming eligible again starts a new round with a full 14 days and fresh warnings |
+| R32-3 | Medium | Warnings that started late went out together, naming a date already past, then the deletion followed with no further email | A round's date is never sooner than 14 days after it starts; warnings name it and go out one at a time |
+| R32-4 | Medium | One firm whose files (or rows) couldn't be deleted blocked every other firm's deletion and stopped the rest of the worker's loop | Failures recorded and retried later with back-off; the worker moves on and never stops its loop |
+| R32-5 | Low | The blanket DELETE grant let `huis_security` erase the staff log and the tombstones | Revoked on those two tables |
+
+Also: the usual date is 720 hours after the trial ended, so it doesn't move an hour across a daylight-saving change. Still open: the Stripe customer record isn't deleted; a payment whose notice arrives after deletion isn't refunded automatically; staff notes about a deleted firm stay in the staff log (they hold account remarks); a new table added later without the delete grant would make deletion fail (recorded and retried, visible in the failure table) until fixed.
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — since 12 November 2026 a firm can require its own Microsoft 365 or Google Workspace sign-in (PHASE-1, Sign-in security), so the organization's MFA applies to every staff sign-in. Huis doesn't verify MFA itself (no reliable claim in Google's or Microsoft's v2.0 ID tokens). Still open: a Huis passkey for firms without a managed organization, and MFA for Huis staff in the admin portal.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.
