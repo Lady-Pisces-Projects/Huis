@@ -48,6 +48,9 @@ Yes, through the client portal, and only into the matter's **Client Uploads** fo
 ### How do people sign in?
 With their Microsoft or Google account. A new firm starts its 7-day trial at `/signup`; everyone else joins a firm by invitation, and the invitation page names the firm before they accept. Huis asks Microsoft or Google only for your name and email address. Invitations are single-use and expire after 7 days. Accounts are never linked automatically by email address. Signing out ends the session on every device, and an administrator can end a user's sessions or disable them immediately.
 
+### Can we require our firm's own accounts, and multi-factor sign-in?
+Yes. Under Users & Access → Sign-in security, your firm's owner or an administrator can require staff to sign in with the firm's own Microsoft 365 or Google Workspace account. Personal Gmail and Outlook accounts are then refused, and your organization's own rules apply to every sign-in, including its required multi-factor sign-in and switching off a departing employee's account (which ends their Huis access at once). Huis takes the organization from the administrator's own sign-in, so you can't lock yourself out. Clients and other outside people sign in with their own accounts and see only the Matters you add them to. Huis never sees a password; multi-factor sign-in is set in Microsoft Entra or the Google Admin console.
+
 ### Has Huis been independently security-tested?
 Yes, at every stage. After each part is built, a separate reviewer that did not write the code attacks it with working exploit attempts against a real database and real malicious files. The reviewer assumes an attacker already has access to the app's own database connection. Every confirmed issue is fixed, and each fix gets a permanent automated test so it can't quietly return. A part isn't released until the reviewer's own attacks no longer work.
 

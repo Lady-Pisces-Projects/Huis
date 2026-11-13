@@ -71,6 +71,22 @@ For attorneys whose firm uses Google Workspace, or a personal Google account. Mi
 
 **Security review 29:** see `SECURITY-REVIEW-2026-11.md`; regression tests in `test/security-review-29.test.ts`, more in `test/google-signin.test.ts`.
 
+## Sign-in security (added 12 November 2026)
+
+A firm can require its staff to sign in with the **firm's own Microsoft 365 organization or Google Workspace domain** (Users & Access → Sign-in security). Personal Gmail and Outlook accounts are then refused for staff, and the firm's own account rules apply to every staff sign-in: its required multi-factor sign-in, password rules, and switching off a departing employee's account (which ends their Huis access too). Clients, co-counsel, expert witnesses and authorized third parties are never held to it.
+
+| Piece | Where | Guarantee |
+|---|---|---|
+| The organization | Microsoft: the tenant in the identity (`<tenant>:<user>`), read by the database itself. Google: the verified token's `hd` claim, recorded in `huis.identity_orgs` at each sign-in | Google: "You must check this claim when restricting access to a resource to only members of certain domains"; absent for personal accounts. The app can't read or write `identity_orgs` except through `huis.signin_accounts` and `huis.accept_invitation` |
+| Turning it on | `huis.set_signin_rule` (0039), `/users/sign-in` | Firm owner, managing partners and firm administrators only. The organization is the one the person turning it on signed in with (no ids typed), so nobody can lock their firm out; a personal account (Gmail, or Microsoft's personal-account tenant) can't turn it on. The page lists the staff who would be signed out first. Audited |
+| Every request | `huis.session_signin_allowed`, `src/db/tenant.ts` | Checked with the session: turning the rule on, or a Google account leaving the firm's Workspace, ends other staff sign-ins at once ("Your firm requires signing in with the firm's own account") |
+| Sign-in | `huis.signin_accounts`, `lib/signin.ts` | Firms that refuse the account are left out of the sign-in choices |
+| Invitations | `huis.accept_invitation(token, provider, subject, org)` | A staff invitation can't be accepted with an account from outside the organization, and isn't used up by the attempt. The 3-argument form is no longer callable by the app |
+
+**Multi-factor sign-in.** Huis doesn't claim to check it itself: Google's ID token doesn't say whether it was used, and Microsoft documents the `amr` claim (which would) for its access tokens; a 2022 Microsoft answer says it is only in version 1.0 tokens, and Huis uses version 2.0. The firm's organization enforces it (Microsoft Entra security defaults or Conditional Access; Google 2-Step Verification enforcement), and this rule makes every staff sign-in go through it. A Huis passkey for firms without a managed organization is a later option.
+
+**Tests:** `test/signin-rules.test.ts` (11 tests).
+
 ## Web app (Next.js)
 
 Pages: sign-in, firm set-up (7-day trial), choose firm, invitation, dashboard, matters (search), new matter (ethical wall option), matter overview (numbers, red Privileged & Confidential folder, access list with privilege-waiver acknowledgement, linked judges/witnesses), clients, people & contacts, users & access (invite, new link, change role, remove access), audit log with live integrity check.
@@ -81,7 +97,7 @@ Settings are listed in `.env.example`. The Microsoft client secret goes only int
 
 ## Still to do in Phase 1
 
-1. **Google sign-in** (needs a Google Cloud OAuth client).
+1. ~~**Google sign-in**~~ — built 12 November 2026 (needs the redirect URI added in Google Cloud).
 2. **Production hosting and database** (decision O-2), then add the production redirect URI in Entra.
 3. **Move the Entra registration to a Huis Law IP business tenant and complete Microsoft publisher verification** before real firms sign in.
-4. **MFA enforcement check**: require Microsoft's MFA claim, or a Huis passkey, for every sign-in.
+4. **MFA**: firms can require their own Microsoft 365 or Google Workspace sign-in, which enforces the organization's MFA (Sign-in security above). Still open: a Huis passkey for firms without a managed organization, and MFA for Huis staff signing in to the admin portal.

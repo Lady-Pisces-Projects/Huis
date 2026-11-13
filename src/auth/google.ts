@@ -55,11 +55,13 @@ export interface GoogleIdentity {
   name: string;
   /** Only when Google says the address is verified. Display only. */
   email: string | null;
+  /** The account's Google Workspace domain ("hd"), or "" for a personal account. Used for the firm sign-in rule. */
+  org: string;
 }
 
 /** Verifies signature, audience, issuer, nonce and expiry (src/mail/google.ts), and keys the identity on Google's account id. */
 export async function verifyGoogleSignIn(idToken: string, opts: { clientId: string; nonce: string; keys?: JWTVerifyGetKey }): Promise<GoogleIdentity> {
   const v = await verifyGoogleIdToken(idToken, opts);
   // Sign-up allows names up to 200 characters (security review 29).
-  return { provider: "google", subject: v.subject, name: (v.name ?? v.email ?? "Google user").slice(0, 200), email: v.email };
+  return { provider: "google", subject: v.subject, name: (v.name ?? v.email ?? "Google user").slice(0, 200), email: v.email, org: v.hostedDomain ?? "" };
 }

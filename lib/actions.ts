@@ -33,7 +33,8 @@ import {
   removeRate, setRate, updateDraftNotes, voidInvoice,
 } from "../src/services/billing";
 import { ROLES } from "../src/security/permissions";
-import { UserFacingError } from "../src/errors";
+import { SignInRuleError, UserFacingError } from "../src/errors";
+import { setSignInRule } from "../src/services/signinRule";
 import { act, db, getPending, getSession, setFlash, setSessionCookie, userMessage, withSession } from "./server";
 import { syncSeatsAfterPeopleChange } from "./billing";
 import { stripeConfig } from "../src/billing/stripe";
@@ -79,7 +80,13 @@ export async function chooseFirmAction(fd: FormData): Promise<void> {
   // Re-check: only accounts that belong to this verified identity.
   const account = (await resolveIdentity(db(), pending.provider, pending.subject)).find((a) => a.userId === userId);
   if (!account) redirect("/select-firm");
-  await setSessionCookie({ firmId: account.firmId, userId: account.userId, provider: pending.provider, subject: pending.subject });
+  try {
+    await setSessionCookie({ firmId: account.firmId, userId: account.userId, provider: pending.provider, subject: pending.subject });
+  } catch (err) {
+    // The firm requires its own Microsoft 365 or Google Workspace account (sign-in security).
+    if (err instanceof SignInRuleError) redirect("/signin?reason=org");
+    throw err;
+  }
   redirect("/dashboard");
 }
 
@@ -741,3 +748,11 @@ export async function removeRateAction(fd: FormData): Promise<void> {
   return act("/billing", "Rate removed.", () => withSession(async (s) => { await removeRate(s, text(fd, "rateId") ?? ""); }));
 }
 
+
+export async function setSignInRuleAction(fd: FormData): Promise<void> {
+  const provider = z.enum(["any", "microsoft", "google"]).parse(text(fd, "provider"));
+  return act("/users/sign-in", provider === "any" ? "Staff can sign in with any Microsoft or Google account they're invited with."
+    : "From now on, staff sign in only with your firm's own account.", () => withSession(async (s) => {
+    await setSignInRule(s, provider);
+  }));
+}

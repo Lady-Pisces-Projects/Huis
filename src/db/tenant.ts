@@ -1,6 +1,6 @@
 import { isIP } from "node:net";
 import pg from "pg";
-import { PermissionDeniedError, UnauthenticatedError, UserFacingError } from "../errors";
+import { PermissionDeniedError, SignInRuleError, UnauthenticatedError, UserFacingError } from "../errors";
 import type { Role } from "../security/permissions";
 
 /** Who is making this request, as established by the sign-in layer. */
@@ -68,6 +68,9 @@ export class HuisDb {
           || (ctx.sessionVersion !== undefined && ctx.sessionVersion !== row.session_version)) {
         throw new UnauthenticatedError();
       }
+      // The firm's sign-in rule, on every request: turning it on ends other sign-ins at once.
+      const rule = await client.query<{ ok: boolean }>("SELECT huis.session_signin_allowed() AS ok");
+      if (rule.rows[0]?.ok !== true) throw new SignInRuleError();
       const actor: Actor = {
         userId: row.id, firmId: row.firm_id, role: row.role, fullName: row.full_name, sessionVersion: row.session_version,
       };
@@ -108,6 +111,10 @@ export class HuisDb {
 export function translatePgError(err: unknown): unknown {
   if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "42501") {
     return new PermissionDeniedError("perform this action");
+  }
+  // The firm's sign-in rule (HU403): the database wrote these messages for the person using Huis.
+  if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "HU403" && err instanceof Error) {
+    return new UserFacingError(err.message.slice(0, 300), 403);
   }
   // Subscription limits (Phase 10): the database wrote these messages for the person using Huis.
   if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "HU402" && err instanceof Error) {

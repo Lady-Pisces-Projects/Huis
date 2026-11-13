@@ -11,6 +11,8 @@ const REASONS: Record<string, string> = {
   expired: "Your session ended. Please sign in again.",
   invite: "That invitation link is invalid, already used or expired. Ask your firm administrator for a new one.",
   signedout: "You have signed out.",
+  org: "Your firm requires signing in with the firm's own Microsoft 365 or Google Workspace account. Sign in with that account, or ask your firm administrator.",
+  "invite-org": "This firm requires its staff to sign in with the firm's own Microsoft 365 or Google Workspace account. Open the invitation again and sign in with that account.",
 };
 
 export function MicrosoftMark() {

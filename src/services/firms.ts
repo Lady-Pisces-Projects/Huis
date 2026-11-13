@@ -53,12 +53,17 @@ export async function signUpFirm(db: HuisDb, input: SignUpFirmInput): Promise<Si
  * Links a verified sign-in identity to an invited account using the one-time
  * invitation token. Returns null if the token is invalid, used or expired.
  */
+/**
+ * `org` is the organization from the verified sign-in token (Google's hosted domain; Microsoft's tenant is read
+ * from the identity by the database). A firm that requires its own organization refuses a staff invitation
+ * accepted with any other account (UserFacingError, status 403).
+ */
 export async function acceptInvitation(
-  db: HuisDb, token: string, provider: string, subject: string,
+  db: HuisDb, token: string, provider: string, subject: string, org = "",
 ): Promise<{ firmId: string; userId: string } | null> {
   return db.withoutFirm(async (client) => {
     const { rows } = await client.query<{ firm_id: string; user_id: string }>(
-      "SELECT * FROM huis.accept_invitation($1, $2, $3)", [token, provider, subject],
+      "SELECT * FROM huis.accept_invitation($1, $2, $3, $4)", [token, provider, subject, org],
     );
     const r = rows[0];
     return r ? { firmId: r.firm_id, userId: r.user_id } : null;
@@ -84,6 +89,18 @@ export async function resolveIdentity(db: HuisDb, provider: string, subject: str
       [provider, subject],
     );
     return rows.map((r) => ({ firmId: r.firm_id, userId: r.user_id, firmName: r.firm_name, role: r.role }));
+  });
+}
+
+export interface SignInAccount extends IdentityAccount { allowed: boolean }
+
+/** Sign-in lookup with each firm's sign-in rule (and records the identity's organization for the rule). */
+export async function signInAccounts(db: HuisDb, provider: string, subject: string, org: string): Promise<SignInAccount[]> {
+  return db.withoutFirm(async (client) => {
+    const { rows } = await client.query<{ firm_id: string; user_id: string; firm_name: string; role: Role; allowed: boolean }>(
+      "SELECT * FROM huis.signin_accounts($1, $2, $3)", [provider, subject, org],
+    );
+    return rows.map((r) => ({ firmId: r.firm_id, userId: r.user_id, firmName: r.firm_name, role: r.role, allowed: r.allowed === true }));
   });
 }
 
