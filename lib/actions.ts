@@ -35,6 +35,7 @@ import {
 import { ROLES } from "../src/security/permissions";
 import { SignInRuleError, UserFacingError } from "../src/errors";
 import { setSignInRule } from "../src/services/signinRule";
+import { reviewGap } from "../src/services/caseStrength";
 import { act, db, getPending, getSession, setFlash, setSessionCookie, userMessage, withSession } from "./server";
 import { syncSeatsAfterPeopleChange } from "./billing";
 import { stripeConfig } from "../src/billing/stripe";
@@ -765,5 +766,13 @@ export async function relinkAction(fd: FormData): Promise<void> {
       message: "Send this one-time link to them. They must open it and sign in with your firm's own account; it works once, within 7 days, and is shown only once.",
       secretLink: inviteLink(token),
     };
+  }));
+}
+
+/** Case Outcome Intelligence: an attorney's answer to a gap (set aside, add context, put back). */
+export async function reviewGapAction(fd: FormData): Promise<void> {
+  const matterId = z.uuid().parse(text(fd, "matterId"));
+  return act(`/matters/${matterId}/strength`, "Saved.", () => withSession(async (s) => {
+    await reviewGap(s, matterId, { gapKey: text(fd, "gapKey"), decision: text(fd, "decision"), note: text(fd, "note") ?? "" });
   }));
 }
