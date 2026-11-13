@@ -70,3 +70,13 @@ export function setAgreement(platform: pg.Pool, staff: string, firmId: string,
   p: { plan: "professional" | "enterprise"; seats: number | null; paidThrough: Date }, note: string) {
   return change(platform, "SELECT huis.platform_set_agreement($1, $2, $3, $4, $5, $6)", [staff, firmId, p.plan, p.seats, p.paidThrough, note]);
 }
+
+/** The firm's sign-in rule (review 35: lockout recovery), or null. */
+export async function getSignInRule(platform: pg.Pool, firmId: string): Promise<{ provider: string; org: string; setAt: Date } | null> {
+  if (!UUID.test(firmId)) return null;
+  const r = (await platform.query("SELECT * FROM huis.platform_signin_rule($1)", [firmId])).rows[0];
+  return r ? { provider: r.provider, org: r.org, setAt: new Date(r.set_at) } : null;
+}
+export function clearSignInRule(platform: pg.Pool, staff: string, firmId: string, note: string) {
+  return change(platform, "SELECT huis.platform_clear_signin_rule($1, $2, $3)", [staff, firmId, note]);
+}

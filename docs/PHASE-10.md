@@ -137,6 +137,8 @@ Decided by Tracy (12 November 2026): **the firm's name, logo and colours**, show
 
 For Huis staff, at `/admin`: every firm's account, and the changes staff make day to day (extending a trial, suspending or restoring an account, a plan by agreement), without the command line.
 
+**Lockout recovery (review 35).** If a firm's sign-in rule locks everyone out (for example its Google Workspace domain changed), staff can turn the rule off on the firm's page, with a note, after confirming who is asking. Recorded in the firm's audit log and the staff log.
+
 **The rule: account information only.** Staff see a firm's name, owner name and email, plan, trial and payment dates, Stripe status, first payment, deletion date, seats, Matter count, storage and AI question counts, and the account's history. **Never a Matter, document, evidence, email, note or client name.** The database enforces it: the portal's login (role `huis_platform`) has no rights on any table and can call only the `platform_*` functions in `db/migrations/0037_admin_portal.sql`, which return account fields and counts.
 
 | Area | What Huis does |

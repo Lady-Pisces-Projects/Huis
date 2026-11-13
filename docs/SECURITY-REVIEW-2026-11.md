@@ -564,6 +564,20 @@ Also: logos over 4000 pixels a side are refused (a 31 KB PNG could unpack to abo
 
 Also: only people linked as "witness to" count as witnesses (not someone merely involved); the causation match no longer catches "related to" or "because" alone, and an element starting with "Damages" is about damages; a damage item counts as documented only with a document or email behind it. Still open: near-copies of one document (a PDF and the same file attached to an email) count as separate sources; confirmed contradictions count toward Credibility even when their statement is hidden from the reader; viewing the page isn't audited (like Case DNA and the claims matrix).
 
+## Thirty-fifth review — End-to-end check of Phases 10 and 11 together (13 November 2026)
+
+Run on `main` after Google sign-in, the admin portal, sign-in rules, unpaid-trial deletion, white label and case strength were merged. Alongside it: a clean install, typecheck, all 590 tests, build and `npm audit` (0); a crawl of every reachable page as owner, attorney, paralegal, read-only staff and client on made-up data (873 pages loaded, no server errors; every 404 was someone correctly kept out: a walled Matter, another person's mailbox or drive, staff tools for a client); and the full made-up firm, now with branding, a gap review, a sign-in rule and a staff note, deleted to the last row (776 rows).
+
+**Result:** nothing new blocks deletion; later migrations kept every earlier protection; the admin portal, Stripe holds, deletion rounds and branding access work together; the strict `/api` policy breaks nothing; clients see only the firm's name and logo from white label. The reviewer confirmed 3 interaction problems. **All fixed**, in `db/migrations/0046_review35.sql`; regression tests in `test/security-review-35.test.ts` (4 tests) and `test/review-35-extras.test.ts` (2 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R35-1 | Medium–Low | With a sign-in rule on, an administrator could disable or demote the only owner the rule lets in, leaving owners who are all refused (review 31 only checked when the rule was turned on) | While a rule exists, the last owner it allows can't be disabled or demoted (database trigger) |
+| R35-2 | Low | An unused "sign in again" link kept working after the rule was turned off: whoever held it could move an existing account to any account | Accepting needs the rule still on and the person still refused; turning the rule off revokes outstanding links |
+| R35-3 | Low | Cloud-drive imports and listings, and email filings, queued by someone the rule now refuses still ran as them | Stopped, like mailbox sync |
+
+Also added: **lockout recovery** in the admin portal. If a firm can no longer sign in under its rule (for example its Google Workspace domain changed), Huis staff can turn the rule off with a note, recorded in the firm's audit log and the staff log. Checked: a firm by agreement already gets `first_paid_at` (set whenever the plan leaves the trial), so it can never become deletable. Still open: a file being written by a running job at the moment a firm is deleted could land after its files are removed (most likely a working copy).
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — since 12 November 2026 a firm can require its own Microsoft 365 or Google Workspace sign-in (PHASE-1, Sign-in security), so the organization's MFA applies to every staff sign-in. Huis doesn't verify MFA itself (no reliable claim in Google's or Microsoft's v2.0 ID tokens). Still open: a Huis passkey for firms without a managed organization, and MFA for Huis staff in the admin portal.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.

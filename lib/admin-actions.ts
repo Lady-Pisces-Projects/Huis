@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { parseDate } from "../scripts/operator/set-subscription";
 import { COOKIE } from "../src/auth/tokens";
-import { setAgreement, setStatus, setTrialEnd } from "../src/services/admin";
+import { clearSignInRule, setAgreement, setStatus, setTrialEnd } from "../src/services/admin";
 import { requireStaff } from "./admin";
 import { setFlash, userMessage } from "./server";
 import { UserFacingError } from "../src/errors";
@@ -72,4 +72,13 @@ export async function adminSetAgreementAction(fd: FormData): Promise<void> {
 export async function adminSignOutAction(): Promise<void> {
   (await cookies()).delete(COOKIE.admin);
   redirect("/admin/signin?reason=signedout");
+}
+
+/** Lockout recovery: turn a firm's sign-in rule off (review 35). */
+export async function adminClearSignInRuleAction(fd: FormData): Promise<void> {
+  const firmId = text(fd, "firmId");
+  return run(firmId, "Sign-in rule turned off.", async (staff) => {
+    const { platform } = await requireStaff();
+    await clearSignInRule(platform, staff, firmId, text(fd, "note"));
+  });
 }
