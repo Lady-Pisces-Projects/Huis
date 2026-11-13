@@ -5,7 +5,7 @@ Spec: `docs/source/phase-11-case-outcome-intelligence.md`. Built in parts; each 
 | Part | What | Status |
 |---|---|---|
 | 11.1 | **Case strength, the holes in the case, and next steps** (with "Why did Huis say this?" and attorney override) | Built, tested and reviewed (security review 34: 6 findings, all fixed) |
-| 11.2 | Discovery gap analysis ("What are we missing?") and opposition analysis ("If I were opposing counsel") | Built and tested; security review 36 next |
+| 11.2 | Discovery gap analysis ("What are we missing?") and opposition analysis ("If I were opposing counsel") | Built and tested; through independent review 36 |
 | 11.3 | **Case value ranges and settlement intelligence** | **Waiting for a source of real verdict and settlement data** (decided by Tracy, 13 November 2026: no dollar values until then) |
 | 11.4 | Scenario modelling, what-if, trial readiness | Later |
 | — | Pricing (premium add-on: per-report fee, monthly add-on, or credits) | **Tracy's decision**; part 11.1 is available to every plan for now |
@@ -48,10 +48,10 @@ Two pages linked from **Case strength**: `/matters/<id>/missing` and `/matters/<
 
 | Section | Rule |
 |---|---|
-| Documents to request | One draft request for production for each claim element with fewer than two documents or emails behind it, worded by the element's name (causation: the decision, approvals, people consulted and reasons; adverse action: the personnel file and separation paperwork; and so on) |
-| Requests for admission (drafts) | "Admit that …" for each confirmed supporting fact with a document behind it, and "Admit that the document … is a true and correct copy" for each such document (up to 30) |
+| Documents to request | One draft request for production for each claim element with fewer than two documents or emails behind it, worded by the element's name and the claim type (causation: the decision, approvals, people consulted and reasons; adverse action: the personnel file and separation paperwork; damages: payroll and benefits for employment claims, records of each loss otherwise). Requests worded the same are merged and name every claim and element they cover |
+| Requests for admission (drafts) | "Admit that …" for each confirmed supporting fact with a document behind it, and "Admit that the document … is a true and correct copy" for each such document (up to 30; once per fact; a fact worded as a question is counted and left for rewording) |
 | Deposition targets | People linked (witness to, or involved in) to a fact that contradicts an element, a fact about the adverse action or causation, or a fact supporting a defense; most reasons first |
-| Witness gaps | Supported elements with no witness; people in Case DNA linked to no fact; people Huis suggested that nobody has reviewed |
+| Witness gaps | Supported elements with no witness; people in Case DNA not linked to any fact behind a claim element (saying whether they are linked to other facts or events); people Huis suggested that nobody has reviewed |
 | Organizations | Organizations in Case DNA, with a reminder that a non-party's records need a subpoena (Huis doesn't know who the parties are) |
 | Expert needs | Damages recorded (an economist or vocational expert); a disability element (a medical expert) |
 | Authentication | Every document or email the claims rely on, most relied on first, with how it might come in |
@@ -59,6 +59,6 @@ Two pages linked from **Case strength**: `/matters/<id>/missing` and `/matters/<
 
 Requests are drafts to edit, never to serve as written; the page says so.
 
-**If I were opposing counsel** — arguments the gaps in the confirmed evidence invite, strongest first, each with *why they could say it*, *how do we counter it* and *evidence needed*: an element with no evidence (Critical); an element resting on the client's word or attorney notes (High); an element standing on one document (Medium); inconsistent evidence on an element (High); each defense with support (High or Medium); another cause for the decision, when a causation element scores under 80 or a defense is recorded; speculative or unsupported damages; failure to mitigate when nothing records a job search or new work. It says what it doesn't check: limitations, exhaustion and other procedural defenses, and how persuasive any fact is.
+**If I were opposing counsel** — arguments the gaps in the confirmed evidence invite, most severe first (by rule, not by how persuasive they are), each with *why they could say it*, *how do we counter it* and *evidence needed*: an element with no evidence (Critical); an element with no document or email behind it, only attorney notes (High); an element standing on one document (Medium); inconsistent evidence on an element (High); each defense with support (High or Medium); another cause for the decision, when a causation element scores under 80 or a defense has support; speculative or unsupported damages; failure to mitigate when nothing records a job search or new work (for non-employment claims: steps to limit the losses). It says what it doesn't check: limitations, exhaustion and other procedural defenses, and how persuasive any fact is.
 
-**Tests:** `test/discovery-opposition.test.ts` (5 tests): drafts only where evidence is thin, admissions from documented facts and their documents, deposition targets with reasons, witness gaps, organizations, experts and authentication; arguments ranked with reasons and counters, mitigation and speculative damages; on a real Matter, from confirmed Case DNA, and refused to a client.
+**Tests:** `test/discovery-opposition.test.ts` (5 tests): drafts only where evidence is thin, admissions from documented facts and their documents, deposition targets with reasons, witness gaps, organizations, experts and authentication; arguments ranked with reasons and counters, mitigation and speculative damages; on a real Matter, from confirmed Case DNA, and refused to a client. `test/security-review-36.test.ts` (9 tests) covers the review 36 fixes.

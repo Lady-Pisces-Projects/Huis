@@ -31,11 +31,11 @@ export default async function OppositionPage({ params }: { params: Promise<{ id:
       <p className="sub"><Link href={`/matters/${m.id}`}>← {m.title}</Link> · <Link href={`/matters/${m.id}/strength`}>Case strength</Link> · <Link href={`/matters/${m.id}/missing`}>What are we missing?</Link></p>
       <p className="notice"><strong>{WORK_PRODUCT_LABEL}</strong></p>
       <h1>If I were opposing counsel</h1>
-      <p className="sub">The arguments the gaps in your confirmed evidence invite, strongest first, and how to counter each. A red-team checklist from fixed rules, not a prediction of what the other side will do.</p>
+      <p className="sub">The arguments the gaps in your confirmed evidence invite, most severe first, and how to counter each. A red-team checklist from fixed rules, not a prediction of what the other side will do.</p>
       {truncated ? <p className="notice">Only the first 200 claims and defenses are included.</p> : null}
-      {o.points.length ? o.points.map((p, i) => (
+      {o.points.length ? o.points.map((p) => (
         <div className="card" key={p.key}>
-          <h2 style={{ marginBottom: 4 }}>{i === 0 ? "Strongest argument: " : ""}{p.argument} <span className={SEVERITY_CLASS[p.severity]}>{p.severity}</span></h2>
+          <h2 style={{ marginBottom: 4 }}>{p.severity === o.points[0]!.severity ? "Most severe: " : ""}{p.argument} <span className={SEVERITY_CLASS[p.severity]}>{p.severity}</span></h2>
           <h4>Why they could say it</h4>
           <ul>{p.why.map((w) => <li key={w}>{w}</li>)}</ul>
           <h4>How do we counter it?</h4>

@@ -103,7 +103,21 @@ async function gather(s: FirmSession, matterId: string): Promise<{ input: Matter
       [factIds, peopleRows.map((r) => r.id)]);
     for (const r of rows) personLinks.set(r.person_id, [...(personLinks.get(r.person_id) ?? []), { factId: r.fact_id, relation: r.relation }]);
   }
-  const people: PersonIn[] = peopleRows.map((r) => ({ ...r, links: personLinks.get(r.id) ?? [] }));
+  // Any other confirmed link to a confirmed fact or event the reader can see, so a person isn't called "linked to
+  // nothing" when they are linked to timeline facts outside the claims (review 36).
+  const otherLinks = new Map<string, number>();
+  if (peopleRows.length) {
+    const { rows } = await s.client.query<{ person_id: string; n: string }>(
+      `SELECT p.id AS person_id, count(*) AS n
+         FROM unnest($1::uuid[]) AS p(id)
+         JOIN huis.dna_links l ON (l.from_id = p.id OR l.to_id = p.id) AND l.status = 'confirmed'
+         JOIN huis.dna_nodes n ON n.id = CASE WHEN l.from_id = p.id THEN l.to_id ELSE l.from_id END
+        WHERE n.status = 'confirmed' AND n.kind IN ('fact', 'event') AND n.matter_id = $2
+        GROUP BY p.id`,
+      [peopleRows.map((r) => r.id), matterId]);
+    for (const r of rows) otherLinks.set(r.person_id, Number(r.n));
+  }
+  const people: PersonIn[] = peopleRows.map((r) => ({ ...r, links: personLinks.get(r.id) ?? [], otherLinks: otherLinks.get(r.id) ?? 0 }));
 
   const authorities = await authoritiesByNode(s, matterId);
   const refs = (id: string) => (authorities.get(id) ?? []).map((a) => ({ citation: a.authority.citation, url: a.authority.url, verified: a.authority.verified !== null, stance: a.stance }));

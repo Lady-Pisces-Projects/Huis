@@ -578,6 +578,22 @@ Run on `main` after Google sign-in, the admin portal, sign-in rules, unpaid-tria
 
 Also added: **lockout recovery** in the admin portal. If a firm can no longer sign in under its rule (for example its Google Workspace domain changed), Huis staff can turn the rule off with a note, recorded in the firm's audit log and the staff log. Checked: a firm by agreement already gets `first_paid_at` (set whenever the plan leaves the trial), so it can never become deletable. Still open: a file being written by a running job at the moment a firm is deleted could land after its files are removed (most likely a working copy).
 
+## Thirty-sixth review — "What are we missing?" and "If I were opposing counsel" (Phase 11 part 2)
+
+Scope: `src/intelligence/discovery.ts`, the people and links gathered in `src/services/caseStrength.ts`, and the two pages. No new tables or database permissions: both views read the same confirmed Case DNA as case strength, for firm staff who can see the Matter, and clients never see them. The reviewer found no access problem; the 7 problems were wrong or misleading output a lawyer might rely on. **All fixed** (code only, no migration); regression tests in `test/security-review-36.test.ts` (9 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R36-1 | Medium | The failure-to-mitigate argument disappeared when any fact said "applied for" or "interview" (for example "applied for FMLA leave", the protected activity in most FMLA cases, or "HR interviewed Pat") | Only phrases about looking for work count (applied for a job or position, job applications or interviews, new employment, unemployment benefits) |
+| R36-2 | Medium | A person tied to a fact used in two places was judged by only the last place, so a witness to a fact contradicting "Adverse action" could drop off the deposition list | Every use of a fact is kept and checked |
+| R36-3 | Low | A fact supporting two elements produced the same request for admission twice | One request per fact |
+| R36-4 | Low | Requests built from a question ("Did HR know…?") or a quotation ended in broken punctuation | Question-worded facts get no draft and are counted on the page ("reword as a statement"); quotes keep their own full stop; the page says when only the first 30 are drafted |
+| R36-5 | Medium–Low | Employment wording on other claims: payroll and benefits records for breach-of-contract damages, "didn't look for comparable work" as mitigation for a business, and a medical expert for "Qualified for the position" in a Title VII claim | Damages requests, next steps and the mitigation argument follow the claim type; "qualified" counts as a disability element only in a disability claim |
+| R36-6 | Low | Two claims needing the same request showed only the first claim as the reason | Merged requests name every claim and element they cover |
+| R36-7 | Low | A person linked to a timeline fact or event outside the claims was described as "not linked to any fact" | Those links are counted; such a person is described as linked, but not to a fact behind a claim element |
+
+Also: the opposing-counsel page labels every point at the top severity "Most severe", instead of calling the first one the strongest (the rules rank by severity, not by persuasiveness); the "notes only" argument now says there is no document or email behind the element, instead of calling it hearsay; and "another cause" is raised for a defense only when the defense has support.
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — since 12 November 2026 a firm can require its own Microsoft 365 or Google Workspace sign-in (PHASE-1, Sign-in security), so the organization's MFA applies to every staff sign-in. Huis doesn't verify MFA itself (no reliable claim in Google's or Microsoft's v2.0 ID tokens). Still open: a Huis passkey for firms without a managed organization, and MFA for Huis staff in the admin portal.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.

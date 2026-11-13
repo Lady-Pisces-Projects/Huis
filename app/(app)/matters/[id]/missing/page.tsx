@@ -40,7 +40,9 @@ export default async function MissingPage({ params }: { params: Promise<{ id: st
       {truncated ? <p className="notice">Only the first 200 claims and defenses are included.</p> : null}
 
       <div className="card"><h2>Documents to request</h2><Drafts list={d.documents} empty="Every claim element already has two or more documents or emails behind it." /></div>
-      <div className="card"><h2>Requests for admission (drafts)</h2><Drafts list={d.admissions} empty="No confirmed fact has a document behind it yet." /></div>
+      <div className="card"><h2>Requests for admission (drafts)</h2><Drafts list={d.admissions} empty="No confirmed fact has a document behind it yet." />
+        {d.admissionsTruncated ? <p className="muted">Only the first 30 are drafted. Serve them in sets your court's limits allow.</p> : null}
+        {d.questionFacts ? <p className="muted">{d.questionFacts} fact{d.questionFacts === 1 ? " is" : "s are"} worded as a question, so no admission was drafted. Reword {d.questionFacts === 1 ? "it" : "them"} as a statement in Case DNA.</p> : null}</div>
       <div className="card">
         <h2>Deposition targets</h2>
         {d.depositions.length ? <ul>{d.depositions.map((p) => <li key={p.href}><Link href={p.href}><strong>{p.title}</strong></Link>{p.detail ? ` (${p.detail})` : ""}<ul>{p.reasons.map((r) => <li key={r}>{r}</li>)}</ul></li>)}</ul>

@@ -173,14 +173,16 @@ function impactOf(label: string): Impact {
 }
 
 /** Suggested actions for an element without enough support. Starting points for the attorney, by the element's name. */
-export function actionsFor(label: string): string[] {
+export function actionsFor(label: string, claim = ""): string[] {
   const a: string[] = [`Use "Find evidence" on this element to search the Matter's documents and emails for it.`];
   if (isCausation(label)) a.push(
     "Look for communications by the decision-maker around the date of the adverse action.",
     "Compare the reasons given for the decision over time (letters, emails, HR notes, agency responses).",
     "Request the approval chain and meeting notes for the decision in discovery.",
   );
-  else if (DAMAGE.test(label)) a.push("Obtain payroll records, benefits statements and tax returns.", "Document mitigation: job applications and any new employment.");
+  else if (DAMAGE.test(label)) a.push(...(claim && !/fmla|title vii|\bada\b|adea|discriminat|retaliat|wrongful (termination|discharge)|employ|wage|harass/i.test(claim)
+    ? ["Gather the records showing each loss and how it was calculated.", "Document the steps taken to limit the losses."]
+    : ["Obtain payroll records, benefits statements and tax returns.", "Document mitigation: job applications and any new employment."]));
   else if (ADVERSE.test(label)) a.push("Obtain the termination letter or notice of the action.", "Request the personnel file and separation paperwork.");
   else if (PROTECTED.test(label)) a.push("Gather the leave request, complaint or report, and the employer's response to it.", "Confirm the dates the employer learned of it.");
   else if (CONTRACT.test(label)) a.push("Locate the signed agreement, amendments and the correspondence about performance.");
@@ -209,15 +211,15 @@ export function analyze(m: MatterIn): StrengthReport {
       const where = { claimId: c.id, elementId: e.id, href };
       if (e.score === 0) {
         gaps.push({ key: `unsupported:${e.id}`, severity: "Critical", impact: impactOf(e.label), title: `${c.label}: nothing yet supports "${e.label}"`,
-          detail: "No confirmed fact supports this element. The claim can't succeed without it.", ...where, actions: actionsFor(e.label) });
+          detail: "No confirmed fact supports this element. The claim can't succeed without it.", ...where, actions: actionsFor(e.label, c.label) });
         continue;
       }
       if (!e.documented) {
         gaps.push({ key: `notes-only:${e.id}`, severity: "High", impact: impactOf(e.label), title: `${c.label}: "${e.label}" has no document or email behind it`,
-          detail: "The supporting facts rest only on attorney notes or have no source. A document or email would make it provable.", ...where, actions: actionsFor(e.label) });
+          detail: "The supporting facts rest only on attorney notes or have no source. A document or email would make it provable.", ...where, actions: actionsFor(e.label, c.label) });
       } else if (e.documentSources < 2) {
         gaps.push({ key: `single-source:${e.id}`, severity: "Medium", impact: impactOf(e.label), title: `${c.label}: "${e.label}" rests on a single source`,
-          detail: "One document or email supports it. If it is challenged or excluded, nothing else does.", ...where, actions: actionsFor(e.label).slice(0, 3) });
+          detail: "One document or email supports it. If it is challenged or excluded, nothing else does.", ...where, actions: actionsFor(e.label, c.label).slice(0, 3) });
       }
       if (e.disputed) {
         gaps.push({ key: `disputed:${e.id}`, severity: "High", impact: "Credibility", title: `${c.label}: "${e.label}" is contradicted`,
