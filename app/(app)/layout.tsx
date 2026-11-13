@@ -5,18 +5,35 @@ import { unreadAlertCount } from "../../src/services/alerts";
 import { deletionDate, pausedReason } from "../../src/services/subscription";
 import { date } from "../../lib/ui";
 import { can, INTERNAL_ROLES } from "../../src/security/permissions";
+import { getBranding, menuInk } from "../../src/services/branding";
 
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { actor, firmName, unread, paused, deleteAfter } = await withSession(async (s) => {
+  const { actor, firmName, unread, paused, deleteAfter, branding } = await withSession(async (s) => {
     const { rows } = await s.client.query<{ name: string }>("SELECT name FROM huis.firms");
-    return { actor: s.actor, firmName: rows[0]?.name ?? "", unread: await unreadAlertCount(s), paused: await pausedReason(s), deleteAfter: await deletionDate(s) };
+    return { actor: s.actor, firmName: rows[0]?.name ?? "", unread: await unreadAlertCount(s), paused: await pausedReason(s), deleteAfter: await deletionDate(s), branding: await getBranding(s) };
   });
+  // White label (Enterprise): the firm's name, logo and colours, for its staff and clients. Colours are checked
+  // for readability by the database; React escapes them into CSS variables.
+  const brand = branding?.enabled ? branding : null;
+  const style = {
+    ...(brand?.brandColor ? { "--brand": brand.brandColor, "--brand-ink": menuInk(brand.brandColor) } : {}),
+    ...(brand?.accentColor ? { "--accent": brand.accentColor } : {}),
+  } as React.CSSProperties;
+  const canBrand = ["firm_owner", "managing_partner", "firm_admin"].includes(actor.role);
   return (
-    <div className="shell">
+    <div className="shell" style={style}>
       <nav className="nav" aria-label="Main">
-        <div className="logo">Huis Law IP<small>{firmName}</small></div>
+        {brand ? (
+          <div className="logo firm-logo">
+            {brand.hasLogo ? <img src={`/api/branding/logo?v=${brand.version}`} alt="" /> : null}
+            {brand.displayName ?? firmName}
+            <small>on Huis Law</small>
+          </div>
+        ) : (
+          <div className="logo">Huis Law IP<small>{firmName}</small></div>
+        )}
         <Link href="/dashboard">Dashboard</Link>
         {INTERNAL_ROLES.has(actor.role) ? <Link href="/alerts">Alerts{unread ? <span className="badge privileged" style={{ marginLeft: 6 }}>{unread > 99 ? "99+" : unread}</span> : null}</Link> : null}
         {INTERNAL_ROLES.has(actor.role) ? <Link href="/inbox">Inbox</Link> : null}
@@ -31,6 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {can(actor.role, "audit.view") ? <Link href="/audit">Audit Log</Link> : null}
         {INTERNAL_ROLES.has(actor.role) ? <Link href="/billing">Billing</Link> : null}
         {can(actor.role, "licenses.view") ? <Link href="/subscription">Subscription</Link> : null}
+        {canBrand ? <Link href="/branding">Branding</Link> : null}
         <div className="spacer" />
         <div className="who">{actor.fullName}<br />{ROLE_LABELS[actor.role]}</div>
         <form action="/api/auth/signout" method="post"><button type="submit">Sign out</button></form>

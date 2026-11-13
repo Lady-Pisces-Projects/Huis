@@ -10,7 +10,7 @@
 | 10.2b | **Deleting an unpaid trial's data** 30 days after the trial ends (firms that ever paid are held, never deleted): warning emails (14, 7 and 1 days before), then crypto-shredding (destroying the firm's encryption key) and deleting its rows; stopping queued work for paused firms | Next; must ship within 37 days of launch |
 | 10.3 | **Firm billing**: timekeeping on Matters, rates, expenses, invoices to clients (trust/IOLTA money through a legal payment processor, O-10) | Review 25 done, fixes in |
 | 10.4 | **Financial evidence analysis**: reading bank statements, invoices and ledgers filed as evidence (totals, gaps, unusual entries) by fixed, explainable rules | Review 26 done, fixes in |
-| 10.5 | **White label** for large firms: the firm's name, logo and colours, its own address | After 10.4 |
+| 10.5 | **White label** for large firms: the firm's name, logo and colours (its own web address with production hosting) | Built and tested; security review 33 next |
 | 10.6 | **Huis admin portal**: firms, plans, seats and trials for Huis staff (replaces the operator command) | Built, tested and reviewed (security review 30: 2 findings, both fixed) |
 | 10.7 | **Production security audit** before launch | With production hosting (O-2) |
 
@@ -88,6 +88,19 @@ Decided by Tracy on 10–11 November 2026:
 **Trial rules and case description:** `test/trial-rules.test.ts` (11 tests): deletion only for an unpaid trial (not a running trial, not a firm that paid by agreement, not after moving a paid firm back to the trial; the app can't clear `first_paid_at`); the trial's AI questions counted across a month end with the plain message; the description finder (organizations, titled people, dates, claims in several practice areas, the 40 cap, nothing from plain text); a Matter's description saved as a note with cited suggestions and no AI question used; labels set by the database from the cited words, claims only from the fixed list, dates checked against their words, one reading per description, audited; only the author, at the firm, can have it read.
 
 **Tests:** `test/stripe.test.ts` (24 tests, against a stand-in for Stripe in `test/fake-stripe.ts`): the trial's seat and Matter limits (including three Matters created at once, and a direct insert); checkout (one customer per firm, monthly and yearly prices, the trial carried over or not, only Stripe's pages, who may subscribe, the customer never replaced); notifications (limits lifted and audited, duplicates, bad / changed / old signatures, Stripe's current state winning over the notification's copy, no cross-firm upgrade, unknown prices, unpaid checkouts, Stripe unreachable, unhandled events, the webhook login's narrow rights); seats billed following staff; access ending (cancelled subscription paused at once with the deletion date, outside users told nothing, resubscribing, an old subscription ending, an unpaid trial's date, no date while the firm has access); signature parsing.
+
+## Part 5 — White label
+
+Decided by Tracy (12 November 2026): **the firm's name, logo and colours**, shown to its staff and clients in Huis. Its own web address (such as portal.smithlaw.com) comes with production hosting.
+
+| Area | What Huis does |
+|---|---|
+| Who | **Enterprise plan only.** Set on **Branding** by the firm's owner, managing partners and firm administrators (`huis.set_firm_branding`, `huis.set_firm_logo`, 0043). On any other plan nothing is shown; saved settings are kept and the administrators are told they return on Enterprise. Audited |
+| What people see | The menu shows the firm's logo and name, with a small "on Huis Law" under it, in the firm's menu colour; links and buttons use its accent colour. Staff and clients of that firm only; nobody else can read another firm's branding or logo |
+| Readable colours | Checked by the database with the WCAG contrast formula: the menu colour must reach 4.5:1 with white or dark text (Huis picks whichever reads better); the link colour must reach 4.5:1 on white. Colours must be plain `#rrggbb` (nothing else can reach the page's styles). Champagne gold links on white, for example, are refused (about 1.9:1); antique bronze passes |
+| Logo | PNG, JPEG or WebP, up to 256 KB, recognised by its first bytes (not its name or the browser's label); SVG is refused because it can carry script. Stored in the database, served at `/api/branding/logo` only to people signed in to that firm, with its real image type and `nosniff` |
+
+**Tests:** `test/white-label.test.ts` (6 tests): staff and clients of an Enterprise firm see its name, colours and logo; another firm sees nothing; Enterprise only (refused on other plans; hidden but kept after leaving Enterprise); only owners, managing partners and firm administrators can change it, and the table can't be written directly; unreadable colours and anything that isn't a plain colour refused; SVG, HTML dressed as a PNG, a file over 256 KB and a name with line breaks refused; removing the logo.
 
 ## Part 6 — Huis admin portal
 
