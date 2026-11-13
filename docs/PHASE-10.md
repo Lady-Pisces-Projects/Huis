@@ -11,7 +11,7 @@
 | 10.3 | **Firm billing**: timekeeping on Matters, rates, expenses, invoices to clients (trust/IOLTA money through a legal payment processor, O-10) | Review 25 done, fixes in |
 | 10.4 | **Financial evidence analysis**: reading bank statements, invoices and ledgers filed as evidence (totals, gaps, unusual entries) by fixed, explainable rules | Review 26 done, fixes in |
 | 10.5 | **White label** for large firms: the firm's name, logo and colours, its own address | After 10.4 |
-| 10.6 | **Huis admin portal**: firms, plans, seats and trials for Huis staff (replaces the operator command) | Built and tested; security review 30 in progress |
+| 10.6 | **Huis admin portal**: firms, plans, seats and trials for Huis staff (replaces the operator command) | Built, tested and reviewed (security review 30: 2 findings, both fixed) |
 | 10.7 | **Production security audit** before launch | With production hosting (O-2) |
 
 ## Part 1 — Subscriptions and licensing
@@ -100,7 +100,7 @@ For Huis staff, at `/admin`: every firm's account, and the changes staff make da
 | Who is staff | `HUIS_STAFF` lists each staff member's sign-in identity (provider + account id, never an email) and name. Checked on every request, so removing someone ends their access at once. Staff sign in at `/admin/signin` with Microsoft or Google; that sign-in never opens, creates or joins a firm, and sets its own one-hour cookie. A firm's session cookie never opens the portal. |
 | Firms list | Search by firm name, address or owner email (`%` and `_` are plain characters); standing in one phrase (trial, trial subscribed, paying by Stripe or agreement, paused, suspended, deletion date). Up to 500, newest first. |
 | Firm page | The account fields and counts above, what the firm currently sees if its work is paused, and the account history (plan changes, Stripe billing, staff actions). |
-| Changes | **Trial end** (trial firms only, within 90 days). **Suspend / restore** (the plan and any Stripe subscription stay as they are). **Plan by agreement** (professional or enterprise, seats, paid-through date; refused while the firm pays through Stripe, so Huis never stops following a subscription Stripe still charges). Each needs a note, and is recorded with the staff member's name in the firm's own audit log and in `huis.platform_audit`, which can only be added to. Dates are the end of that day, Utah time. |
+| Changes | **Trial end** (trial firms without a Stripe subscription only, a future date within 90 days). **Suspend / restore** (the plan and any Stripe subscription stay as they are). **Plan by agreement** (professional or enterprise, seats, paid-through date; refused while the firm has any Stripe subscription that could still charge, including unpaid or paused ones, so Huis never stops following a subscription Stripe could restart). Each needs a note, and is recorded with the staff member's name in the firm's own audit log and in `huis.platform_audit`, which can only be added to. Dates are the end of that day, Utah time. |
 
 ### Before it can be used
 1. Create a database login in role `huis_platform` and set `HUIS_PLATFORM_DATABASE_URL`.
@@ -108,7 +108,7 @@ For Huis staff, at `/admin`: every firm's account, and the changes staff make da
 
 The operator command (`scripts/operator/set-subscription.ts`) stays for emergencies, with the database owner's connection.
 
-**Tests:** `test/admin-portal.test.ts` (9 tests): the staff list (by identity, never email); the list and firm page carry no Matter titles or client names; the portal's login can't read any table or call the operator function; the app's login can't call the portal's functions; trial end, suspend/restore and plan by agreement, each with a required note and recorded; the Stripe guard; the staff log can only be added to.
+**Tests:** `test/admin-portal.test.ts` (9 tests) and `test/security-review-30.test.ts` (4 tests, review 30): the staff list (by identity, never email); the list and firm page carry no Matter titles or client names; the portal's login can't read any table or call the operator function; the app's login can't call the portal's functions; trial end, suspend/restore and plan by agreement, each with a required note and recorded; the Stripe guard; the staff log can only be added to.
 
 ## Part 3 — Firm billing (time, rates, expenses, invoices)
 

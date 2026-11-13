@@ -25,7 +25,8 @@ export default async function AdminFirmPage({ params, searchParams }: { params: 
   const flash = await getFlash((await searchParams).f);
   const { firm: f, history } = got;
   const s = standing(f);
-  const stripeLive = f.stripeStatus !== null && ["active", "trialing", "past_due"].includes(f.stripeStatus) && !f.accessEndedAt;
+  // Same rule as huis.platform_stripe_live (security review 30): any subscription Stripe could still restart.
+  const stripeLive = f.stripeStatus !== null && !["canceled", "incomplete_expired"].includes(f.stripeStatus);
   const row = (k: string, v: React.ReactNode) => <tr><th style={{ width: 220 }}>{k}</th><td>{v}</td></tr>;
   return (
     <main style={{ maxWidth: 1000, margin: "0 auto", padding: "24px 16px" }}>
@@ -61,18 +62,18 @@ export default async function AdminFirmPage({ params, searchParams }: { params: 
             <h3>Trial end</h3>
             <input type="hidden" name="firmId" value={f.firmId} />
             <label htmlFor="trialEnds">New end date (end of that day, Utah time)</label>
-            <input id="trialEnds" name="trialEnds" type="date" required defaultValue={iso(f.trialEndsAt)} />
+            <input id="trialEnds" name="trialEnds" type="date" required min={iso(new Date())} defaultValue={iso(f.trialEndsAt)} />
             <label htmlFor="trialNote">Note</label>
             <input id="trialNote" name="note" required maxLength={500} placeholder="e.g. Extended for a demo with the partners" />
-            <button type="submit">Set trial end</button>
-            {f.stripeStatus === "trialing" ? <p className="notice">This firm has subscribed in Stripe; Stripe&apos;s own trial date doesn&apos;t change.</p> : null}
+            {stripeLive ? <p className="flash error">This firm has a Stripe subscription. Change its trial in Stripe instead.</p> : null}
+            <button type="submit" disabled={stripeLive}>Set trial end</button>
           </form>
         ) : null}
         <form action={adminSetStatusAction} className="card">
           <h3>{f.status === "active" ? "Suspend account" : "Restore account"}</h3>
           <input type="hidden" name="firmId" value={f.firmId} />
           <input type="hidden" name="status" value={f.status === "active" ? "suspended" : "active"} />
-          <p className="notice">{f.status === "active" ? "Everyone can still sign in, open and export; adding new work stops. The plan and any Stripe subscription stay as they are." : "Restores the firm's access as its plan allows."}</p>
+          <p className="notice">{f.status === "active" ? stripeLive ? "Everyone can still sign in, open and export; adding new work stops. Stripe keeps charging: pause or cancel the subscription in Stripe if billing should stop too." : "Everyone can still sign in, open and export; adding new work stops. The plan stays as it is." : "Restores the firm's access as its plan allows."}</p>
           <label htmlFor="statusNote">Note</label>
           <input id="statusNote" name="note" required maxLength={500} />
           <button type="submit" className={f.status === "active" ? "danger" : undefined}>{f.status === "active" ? "Suspend" : "Restore"}</button>
@@ -80,7 +81,7 @@ export default async function AdminFirmPage({ params, searchParams }: { params: 
         <form action={adminSetAgreementAction} className="card">
           <h3>Plan by agreement</h3>
           <input type="hidden" name="firmId" value={f.firmId} />
-          {stripeLive ? <p className="flash error">This firm pays through Stripe. Change or cancel its subscription in Stripe first.</p> : null}
+          {stripeLive ? <p className="flash error">This firm has a Stripe subscription that could still charge. Cancel it in Stripe first.</p> : null}
           <label htmlFor="plan">Plan</label>
           <select id="plan" name="plan" defaultValue={f.plan === "enterprise" ? "enterprise" : "professional"}>
             <option value="professional">Professional</option><option value="enterprise">Enterprise</option>

@@ -109,7 +109,7 @@ describe("what Huis staff can change, always with a note, always recorded", () =
       await c.query("COMMIT");
     } finally { c.release(); }
     await expect(setAgreement(t.platform, "Tracy Peart", g.firmId, { plan: "enterprise", seats: 5, paidThrough: until }, "x"))
-      .rejects.toThrow(/pays through Stripe/);
+      .rejects.toThrow(/Stripe subscription that could still charge/);
   });
 
   it("the staff log can only be added to", async () => {
