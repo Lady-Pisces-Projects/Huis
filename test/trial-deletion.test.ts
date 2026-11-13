@@ -249,6 +249,16 @@ describe("deleting", () => {
   });
 });
 
+describe("every table", () => {
+  it("can be cleared by the deletion: huis_security may delete from every table that has a firm id", async () => {
+    const missing = (await t.admin.query(`SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'huis' AND c.relkind IN ('r', 'p') AND c.relname NOT IN ('firm_deletions', 'platform_audit')
+         AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attname = 'firm_id' AND NOT a.attisdropped)
+         AND NOT has_table_privilege('huis_security', c.oid, 'DELETE')`)).rows.map((r) => r.relname);
+    expect(missing).toEqual([]);
+  });
+});
+
 describe("who can do it", () => {
   it("only the worker; the app can't call it, can't fake a deletion in progress, and issued invoices stay undeletable", async () => {
     const f = await richTrialFirm();

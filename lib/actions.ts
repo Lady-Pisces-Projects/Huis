@@ -36,6 +36,7 @@ import { ROLES } from "../src/security/permissions";
 import { SignInRuleError, UserFacingError } from "../src/errors";
 import { setSignInRule } from "../src/services/signinRule";
 import { MAX_LOGO_BYTES, setBranding, setLogo } from "../src/services/branding";
+import { reviewGap } from "../src/services/caseStrength";
 import { act, db, getPending, getSession, setFlash, setSessionCookie, userMessage, withSession } from "./server";
 import { syncSeatsAfterPeopleChange } from "./billing";
 import { stripeConfig } from "../src/billing/stripe";
@@ -785,5 +786,13 @@ export async function setLogoAction(fd: FormData): Promise<void> {
     if (!(file instanceof File) || file.size === 0) throw new UserFacingError("Choose a PNG, JPEG or WebP image.");
     if (file.size > MAX_LOGO_BYTES) throw new UserFacingError("The logo can be up to 256 KB.");
     await setLogo(s, Buffer.from(await file.arrayBuffer()));
+  }));
+}
+
+/** Case Outcome Intelligence: an attorney's answer to a gap (set aside, add context, put back). */
+export async function reviewGapAction(fd: FormData): Promise<void> {
+  const matterId = z.uuid().parse(text(fd, "matterId"));
+  return act(`/matters/${matterId}/strength`, "Saved.", () => withSession(async (s) => {
+    await reviewGap(s, matterId, { gapKey: text(fd, "gapKey"), decision: text(fd, "decision"), note: text(fd, "note") ?? "" });
   }));
 }
