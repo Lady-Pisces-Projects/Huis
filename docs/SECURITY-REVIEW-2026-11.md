@@ -594,6 +594,21 @@ Scope: `src/intelligence/discovery.ts`, the people and links gathered in `src/se
 
 Also: the opposing-counsel page labels every point at the top severity "Most severe", instead of calling the first one the strongest (the rules rank by severity, not by persuasiveness); the "notes only" argument now says there is no document or email behind the element, instead of calling it hearsay; and "another cause" is raised for a defense only when the defense has support.
 
+## Thirty-seventh review — What if? and Trial readiness (Phase 11 part 4)
+
+Scope: `src/intelligence/scenarios.ts`, `whatIfAnalysis` and `trialReadiness` in `src/services/caseStrength.ts`, and the two pages. No new tables or permissions; nothing is written (a what-if lives only in the page address, as ids checked against the Matter). The reviewer found no access problem and no write to Case DNA; the `c` parameter is strictly parsed, capped and never reaches SQL, and an id behind an ethical wall gets the same answer as a made-up one. The 6 problems were misleading output. **All fixed** (code only, no migration); regression tests in `test/security-review-37.test.ts` (9 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R37-1 | Medium | With every measured category at 100%, readiness still named "your largest current weakness" | No weakness is named then; the page says everything measured is at 100% |
+| R37-2 | Medium | A claim with no elements was left out, so a Matter could read 100% ready while case strength rated it "Insufficient information" | Such a claim counts against exhibits and research as one element with nothing behind it, and is named |
+| R37-3 | Low | What if? didn't show a hole that became more severe (a defense becoming fully supported goes from Medium to High under the same key) | Listed under "Holes that would change", with before and after severity |
+| R37-4 | Low | Defense elements weren't marked as the defense's, and the caveat about defenses and damages was wrong | Marked in the options and the assumption text; caveat corrected |
+| R37-5 | Low | Anyone with "expert" in their role counted (including the other side's), and one expert covered every flagged area | An expert counts only for an area their role names; a role naming a party or the other side isn't counted and is listed, since Huis doesn't record which side the firm represents |
+| R37-6 | Low | The two pages lacked case strength's notice that items behind an ethical wall aren't counted | Added |
+
+Also: the 20-assumption limit is checked before the Matter is read.
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — since 12 November 2026 a firm can require its own Microsoft 365 or Google Workspace sign-in (PHASE-1, Sign-in security), so the organization's MFA applies to every staff sign-in. Huis doesn't verify MFA itself (no reliable claim in Google's or Microsoft's v2.0 ID tokens). Still open: a Huis passkey for firms without a managed organization, and MFA for Huis staff in the admin portal.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.
