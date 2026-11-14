@@ -6,7 +6,7 @@ Spec: `docs/source/phase-11-case-outcome-intelligence.md`. Built in parts; each 
 |---|---|---|
 | 11.1 | **Case strength, the holes in the case, and next steps** (with "Why did Huis say this?" and attorney override) | Built, tested and reviewed (security review 34: 6 findings, all fixed) |
 | 11.2 | Discovery gap analysis ("What are we missing?") and opposition analysis ("If I were opposing counsel") | Built and tested; through independent review 36 |
-| 11.3 | **Case value ranges and settlement intelligence** | **Waiting for a source of real verdict and settlement data** (decided by Tracy, 13 November 2026: no dollar values until then) |
+| 11.3 | **Federal benchmarks** (how similar federal cases ended and how long they took; no dollar values) | Built and tested; independent review 38 next. Dollar ranges and settlement values stay off: no reliable source (decided by Tracy, 13 November 2026) |
 | 11.4 | Scenario modelling, what-if, trial readiness | Later |
 | — | Pricing (premium add-on: per-report fee, monthly add-on, or credits) | **Tracy's decision**; part 11.1 is available to every plan for now |
 
@@ -62,3 +62,23 @@ Requests are drafts to edit, never to serve as written; the page says so.
 **If I were opposing counsel** — arguments the gaps in the confirmed evidence invite, most severe first (by rule, not by how persuasive they are), each with *why they could say it*, *how do we counter it* and *evidence needed*: an element with no evidence (Critical); an element with no document or email behind it, only attorney notes (High); an element standing on one document (Medium); inconsistent evidence on an element (High); each defense with support (High or Medium); another cause for the decision, when a causation element scores under 80 or a defense has support; speculative or unsupported damages; failure to mitigate when nothing records a job search or new work (for non-employment claims: steps to limit the losses). It says what it doesn't check: limitations, exhaustion and other procedural defenses, and how persuasive any fact is.
 
 **Tests:** `test/discovery-opposition.test.ts` (5 tests): drafts only where evidence is thin, admissions from documented facts and their documents, deposition targets with reasons, witness gaps, organizations, experts and authentication; arguments ranked with reasons and counters, mitigation and speculative damages; on a real Matter, from confirmed Case DNA, and refused to a client. `test/security-review-36.test.ts` (9 tests) covers the review 36 fixes.
+
+## Part 3 — Federal benchmarks (no dollar values)
+
+**Decided by Tracy, 13 November 2026:** use the free federal data, benchmarks only, no dollar figures. The Federal Judicial Center's own codebook says its amount-received field is one it "advises against" analysing, and settlement amounts aren't in the data at all. Source and field meanings: `docs/source/fjc-civil-codebook.md`.
+
+At **Matter → Case strength → Federal benchmarks** (`/matters/<id>/benchmarks`). Firm staff only. For each confirmed claim, Huis picks the federal case type by the claim's name (FMLA 751; ADA employment 445; FLSA 710; ERISA 791; Title VII, ADEA, discrimination, retaliation or harassment 442; contract 190; personal injury or negligence 360; first match wins) and shows, for federal court in the Matter's state and nationwide:
+
+| Figure | Rule (FJC fields) |
+|---|---|
+| Cases counted | Cases of that type that ended in the period loaded, leaving out transfers, remands, MDL transfers, bankruptcy stays and statistical closings (`DISP` 0, 1, 10, 11, 16, 18) |
+| Settled · Voluntarily dismissed · Dismissed · Ended by a judgment · Ended by a trial | Share of cases counted, by `DISP` group (13 · 12 · 2, 3, 14 · 4–9, 15, 17, 19, 20 · 7, 8, 9) |
+| Judgments for the plaintiff / defendant | Share of judgments where the winning side is recorded (`JUDGMENT` 1, 2 or 3) |
+| Time to the end | Median months from `FILEDATE` to `TERMDATE`, with the middle half; separately for cases that ended by trial |
+
+**Every figure needs 30 or more cases**, or it says how few there were instead. A claim no case type matches says so. The page always says: no dollar amounts; federal court only; a case's type is chosen at filing and a case with several claims has one; these describe past cases, not a prediction.
+
+**Loading the data** (Huis staff, at hosting time): download `cv88on.zip` from the FJC civil page, unzip it, and run `npx tsx scripts/operator/import-fjc-idb.ts --file cv88on.txt` with the database owner's connection. It keeps cases that ended in the last 10 years (`--years` to change), only district, case type, dates, disposition and judgment (**no dollar fields**), replaces the previous load in one transaction, records the file's SHA-256, and refuses a file whose columns don't match the codebook or where more than 5% of ended cases have unreadable dates. The tables (`huis.federal_cases`, `huis.federal_imports`, migration 0047) hold no firm information; the app can read them and never write them. Until a load, the page says the data hasn't been loaded.
+
+**Tests:** `test/federal-benchmarks.test.ts` (4 tests): reading the codebook's fields and date formats, skipping pending, missing and old cases, no dollar values kept; claim and state mapping; nothing shown under 30 cases; a load, a refused load that changes nothing, the benchmarks on a real Matter, the app unable to change the data, and a client refused.
+
