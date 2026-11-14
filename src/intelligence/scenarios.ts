@@ -32,7 +32,7 @@ export function parseChanges(raw: string[] | string | undefined): Change[] {
 }
 
 export interface WhatIfInput {
-  elements: { id: string; label: string; claim: string }[];
+  elements: { id: string; label: string; claim: string; kind: "claim" | "defense" }[];
   facts: { id: string; label: string; uses: string[] }[];
   witnesses: { id: string; label: string; facts: number }[];
 }
@@ -43,7 +43,7 @@ export function whatIfOptions(m: MatterIn): WhatIfInput {
   const facts = new Map<string, { id: string; label: string; uses: string[] }>();
   const witnesses = new Map<string, { id: string; label: string; facts: Set<string> }>();
   for (const c of m.claims) for (const e of c.elements) {
-    elements.push({ id: e.id, label: e.label, claim: c.label });
+    elements.push({ id: e.id, label: e.label, claim: c.label, kind: c.kind });
     for (const [side, list] of [["supports", e.supporting], ["contradicts", e.contradicting]] as const) for (const f of list) {
       const entry = facts.get(f.id) ?? { id: f.id, label: f.label, uses: [] };
       entry.uses.push(`${side} "${e.label}" (${c.label})`);
@@ -107,6 +107,8 @@ export interface WhatIf {
   elements: ElementDelta[];
   gapsClosed: Gap[];
   gapsOpened: Gap[];
+  /** Same hole, different severity or wording (for example a defense that becomes fully supported). */
+  gapsChanged: (Gap & { was: Gap })[];
   notChecked: string[];
 }
 
@@ -114,7 +116,7 @@ const describe = (m: MatterIn, c: Change): string => {
   const o = whatIfOptions(m);
   const name = c.kind === "lose-fact" ? o.facts.find((f) => f.id === c.id)?.label
     : c.kind === "lose-witness" ? o.witnesses.find((w) => w.id === c.id)?.label
-      : (() => { const e = o.elements.find((x) => x.id === c.id); return e ? `"${e.label}" (${e.claim})` : undefined; })();
+      : (() => { const e = o.elements.find((x) => x.id === c.id); return e ? `"${e.label}" (${e.kind === "defense" ? `the defense "${e.claim}"` : e.claim})` : undefined; })();
   return `${LABEL[c.kind]}: ${name ?? "?"}`;
 };
 
@@ -137,6 +139,11 @@ export function whatIf(m: MatterIn, changes: Change[]): WhatIf {
   }
   const beforeKeys = new Set(base.gaps.map((g) => g.key));
   const afterKeys = new Set(next.gaps.map((g) => g.key));
+  const afterByKey = new Map(next.gaps.map((g) => [g.key, g]));
+  const gapsChanged = base.gaps.flatMap((g) => {
+    const a = afterByKey.get(g.key);
+    return a && (a.severity !== g.severity || a.title !== g.title || a.detail !== g.detail) ? [{ ...a, was: g }] : [];
+  });
   return {
     assumptions: changes.map((c) => describe(m, c)),
     before: base.overall,
@@ -145,9 +152,10 @@ export function whatIf(m: MatterIn, changes: Change[]): WhatIf {
     elements,
     gapsClosed: base.gaps.filter((g) => !afterKeys.has(g.key)),
     gapsOpened: next.gaps.filter((g) => !beforeKeys.has(g.key)),
+    gapsChanged,
     notChecked: [
       "Whether the assumed evidence exists, is admissible, or would be believed: a hypothetical document counts like a real one.",
-      "Damages and the defense's evidence aren't changed by these assumptions unless a fact you remove is used there.",
+      "Damage items aren't changed. Defenses change only where an assumption touches their elements, facts or witnesses.",
       "Nothing here is saved or changes Case DNA.",
     ],
   };
@@ -167,6 +175,11 @@ export interface Readiness {
 
 const pct = (n: number, d: number) => Math.round((100 * n) / d);
 const EXPERT_ROLE = /\bexpert\b/i;
+const PARTY_ROLE = /defendant|plaintiff|respondent|petitioner|claimant|employer|opposing|other side|adverse|rebuttal|\btheir\b/i;
+const AREA_ROLE = {
+  damages: /damage|econom|vocational|forensic account|accountant|life care|wage|financial/i,
+  medical: /medic|physician|doctor|psychiatr|psycholog|neurolog|nurse|clinical|occupational/i,
+};
 const MEDICAL = /disab|accommodat/i;
 const isDisabilityClaim = (claim: string) => /\bada\b|disab/i.test(claim);
 
@@ -176,6 +189,11 @@ const isDisabilityClaim = (claim: string) => /\bada\b|disab/i.test(claim);
  */
 export function readiness(m: MatterIn, report: StrengthReport, people: PersonIn[]): Readiness {
   const els = report.claims.flatMap((c) => c.elements.map((e) => ({ c, e })));
+  // A claim with no elements counts against exhibits and research as one element with nothing behind it, so it can't
+  // look ready (case strength rates it "Insufficient information": review 37).
+  const empty = report.claims.filter((c) => c.elements.length === 0);
+  const emptyNote = empty.length ? ` ${empty.length} claim${empty.length === 1 ? " has" : "s have"} no elements yet and count${empty.length === 1 ? "s" : ""} as nothing proved: ${empty.map((c) => c.label).join("; ")}.` : "";
+  const units = els.length + empty.length;
   const cats: ReadinessCategory[] = [];
 
   cats.push({ key: "discovery", label: "Discovery", value: null, rule: "Not measured.",
@@ -189,27 +207,37 @@ export function readiness(m: MatterIn, report: StrengthReport, people: PersonIn[
     : { key: "witnesses", label: "Witnesses", value: null, rule: "Supported claim elements with a witness linked to a supporting fact.", why: "No claim element is supported yet." });
 
   cats.push(els.length
-    ? { key: "exhibits", label: "Exhibits", value: pct(els.filter(({ e }) => e.documentSources > 0).length, els.length),
-        rule: "Claim elements with at least one document or email behind them.",
-        why: `${els.filter(({ e }) => e.documentSources > 0).length} of ${els.length} elements have a document or email.${m.evidence.unread ? ` ${m.evidence.unread} uploaded item${m.evidence.unread === 1 ? " hasn't" : "s haven't"} been read yet.` : ""}` }
+    ? { key: "exhibits", label: "Exhibits", value: pct(els.filter(({ e }) => e.documentSources > 0).length, units),
+        rule: "Claim elements with at least one document or email behind them (a claim with no elements counts as one without).",
+        why: `${els.filter(({ e }) => e.documentSources > 0).length} of ${units} elements have a document or email.${emptyNote}${m.evidence.unread ? ` ${m.evidence.unread} uploaded item${m.evidence.unread === 1 ? " hasn't" : "s haven't"} been read yet.` : ""}` }
     : { key: "exhibits", label: "Exhibits", value: null, rule: "Claim elements with at least one document or email behind them.", why: "No claim elements yet." });
 
   const researched = els.filter(({ c, e }) => e.authorities.some((a) => a.verified) || c.authorities.some((a) => a.verified));
   cats.push(els.length
-    ? { key: "research", label: "Legal research", value: pct(researched.length, els.length),
-        rule: "Claim elements with a verified authority cited on the element or its claim.",
-        why: `${researched.length} of ${els.length} elements have a verified authority. Unverified citations don't count.` }
+    ? { key: "research", label: "Legal research", value: pct(researched.length + empty.filter((c) => c.authorities.some((a) => a.verified)).length, units),
+        rule: "Claim elements with a verified authority cited on the element or its claim (a claim with no elements counts as one element).",
+        why: `${researched.length + empty.filter((c) => c.authorities.some((a) => a.verified)).length} of ${units} elements have a verified authority. Unverified citations don't count.${emptyNote}` }
     : { key: "research", label: "Legal research", value: null, rule: "Claim elements with a verified authority cited on the element or its claim.", why: "No claim elements yet." });
 
-  const areas: string[] = [];
+  const areas: ("damages" | "medical")[] = [];
   if (m.damages.some((d) => (d.amount ?? 0) > 0)) areas.push("damages");
   if (report.claims.some((c) => c.elements.some((e) => MEDICAL.test(e.label) || (/qualified/i.test(e.label) && isDisabilityClaim(c.label))))) areas.push("medical");
-  const experts = people.filter((p) => p.kind === "person" && p.role && EXPERT_ROLE.test(p.role));
+  // An expert counts for an area only when the role names it. A role naming a party ("Defendant's …") or the other
+  // side isn't counted: Huis doesn't record which side the firm represents (review 37).
+  const expertPeople = people.filter((p) => p.kind === "person" && p.role && EXPERT_ROLE.test(p.role));
+  const sided = expertPeople.filter((p) => PARTY_ROLE.test(p.role!));
+  const ours = expertPeople.filter((p) => !PARTY_ROLE.test(p.role!));
+  const covered = areas.filter((a) => ours.some((p) => AREA_ROLE[a].test(p.role!)));
+  const expertRule = "Expert areas the rules flag (damages amounts; a medical element) with someone in Case DNA whose role names an expert in that area.";
   cats.push(areas.length
-    ? { key: "experts", label: "Expert support", value: Math.min(100, pct(experts.length, areas.length)),
-        rule: "People in Case DNA whose role names an expert, against the expert areas the rules flag (damages, medical).",
-        why: `Areas flagged: ${areas.join(", ")}. ${experts.length ? `Experts in Case DNA: ${experts.map((p) => p.label).join(", ")}.` : "No one in Case DNA has an expert role."} Huis can't tell which area an expert covers or whether they're retained.` }
-    : { key: "experts", label: "Expert support", value: null, rule: "People in Case DNA whose role names an expert, against the expert areas the rules flag (damages, medical).", why: "The rules flag no expert need (no damages amounts, no medical element)." });
+    ? { key: "experts", label: "Expert support", value: pct(covered.length, areas.length), rule: expertRule,
+        why: [
+          `Areas flagged: ${areas.join(", ")}; covered: ${covered.length ? covered.join(", ") : "none"}.`,
+          ours.length ? `Experts counted: ${ours.map((p) => `${p.label} (${p.role})`).join(", ")}.` : "",
+          sided.length ? `Not counted, because the role names a party or the other side and Huis doesn't record which side the firm represents: ${sided.map((p) => `${p.label} (${p.role})`).join(", ")}.` : "",
+          "Huis can't tell whether an expert is retained or their report is done.",
+        ].filter(Boolean).join(" ") }
+    : { key: "experts", label: "Expert support", value: null, rule: expertRule, why: "The rules flag no expert need (no damages amounts, no medical element)." });
 
   cats.push(m.damages.length
     ? { key: "damages", label: "Damages documentation", value: pct(m.damages.filter((d) => d.amount !== null && d.sources > 0).length, m.damages.length),
@@ -223,7 +251,8 @@ export function readiness(m: MatterIn, report: StrengthReport, people: PersonIn[
       why: "Not enough is recorded to measure: add claims with their elements in Case DNA." };
   }
   const score = Math.round(measured.reduce((a, c) => a + c.value!, 0) / measured.length);
-  const weakest = [...measured].sort((a, b) => a.value! - b.value!)[0]!;
+  const lowest = [...measured].sort((a, b) => a.value! - b.value!)[0]!;
+  const weakest = lowest.value! < 100 ? lowest : null;
   return {
     score, weakest, categories: cats, confidence: report.confidence,
     why: `Average of the ${measured.length} categories Huis can measure${cats.length > measured.length ? ` (${cats.filter((c) => c.value === null).map((c) => c.label).join(", ")} not measured)` : ""}.`,

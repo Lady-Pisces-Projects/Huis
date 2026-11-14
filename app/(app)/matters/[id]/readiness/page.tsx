@@ -29,10 +29,12 @@ export default async function ReadinessPage({ params }: { params: Promise<{ id: 
       <p className="notice"><strong>{WORK_PRODUCT_LABEL}</strong></p>
       <h1>Trial readiness</h1>
       <p className="sub">How ready the record is, from what the firm has confirmed in Case DNA. What Huis can&apos;t measure is shown as not measured, never guessed. Decision support, not a guarantee of any result.</p>
+      <p className="notice">Only confirmed facts and links count; Huis&apos;s suggestions waiting for review don&apos;t. Anything you can&apos;t see (behind an ethical wall) isn&apos;t counted.</p>
       {r.truncated ? <p className="notice">Only the first 200 claims and defenses are included.</p> : null}
       <div className="card">
         <h2>{r.score === null ? "Not enough to measure" : `${r.score}%`}</h2>
         <p className="muted">{r.why}</p>
+        {r.score !== null && !r.weakest ? <p>Every category Huis can measure is at 100%.</p> : null}
         {r.weakest ? <p><strong>Your largest current weakness is {r.weakest.label.toLowerCase()}</strong> ({r.weakest.value}%): {r.weakest.why}</p> : null}
         <p><strong>Confidence: {r.confidence.level}.</strong> {r.confidence.reasons.join(" ")}</p>
       </div>

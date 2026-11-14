@@ -185,9 +185,9 @@ export async function discoveryAndOpposition(s: FirmSession, matterId: string): 
 /** Part 4: What-If Analysis. Re-runs the rules with the attorney's assumptions; nothing is saved or changed. */
 export async function whatIfAnalysis(s: FirmSession, matterId: string, changes: Change[]): Promise<{ options: WhatIfInput; result: WhatIf | null; truncated: boolean }> {
   reader(s);
+  if (changes.length > MAX_CHANGES) throw new UserFacingError(`Test at most ${MAX_CHANGES} assumptions at a time.`);
   await getMatter(s, matterId);
   const g = await gather(s, matterId);
-  if (changes.length > MAX_CHANGES) throw new UserFacingError(`Test at most ${MAX_CHANGES} assumptions at a time.`);
   let result: WhatIf | null = null;
   if (changes.length) {
     try { result = whatIf(g.input, changes); } catch (err) {

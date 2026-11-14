@@ -50,6 +50,7 @@ export default async function WhatIfPage({ params, searchParams }: { params: Pro
         Test assumptions against the same rules as case strength: what moves if a witness confirms an element, a new email turns up, or a
         fact is excluded. Nothing is saved, and Case DNA doesn&apos;t change. These are evidence coverage scores, <strong>not a probability of winning</strong>.
       </p>
+      <p className="notice">Only confirmed facts and links count; Huis&apos;s suggestions waiting for review don&apos;t. Anything you can&apos;t see (behind an ethical wall) isn&apos;t counted.</p>
       {truncated ? <p className="notice">Only the first 200 claims and defenses are included.</p> : null}
       {error ? <p className="notice error" role="alert">{error}</p> : null}
 
@@ -72,6 +73,7 @@ export default async function WhatIfPage({ params, searchParams }: { params: Pro
             </>
           ) : null}
           {r.gapsClosed.length ? <><h3>Holes this would close</h3><ul>{r.gapsClosed.map((g) => <li key={g.key}>{g.title} <span className="badge muted">{g.severity}</span></li>)}</ul></> : null}
+          {r.gapsChanged.length ? <><h3>Holes that would change</h3><ul>{r.gapsChanged.map((g) => <li key={g.key}>{g.title}: <span className="badge muted">{g.was.severity}</span> → <span className="badge warn">{g.severity}</span>{g.detail !== g.was.detail ? <div className="muted">{g.detail}</div> : null}</li>)}</ul></> : null}
           {r.gapsOpened.length ? <><h3>New holes this would open</h3><ul>{r.gapsOpened.map((g) => <li key={g.key}>{g.title} <span className="badge warn">{g.severity}</span></li>)}</ul></> : null}
           <h3>What this doesn&apos;t check</h3>
           <ul>{r.notChecked.map((n) => <li key={n}>{n}</li>)}</ul>
@@ -86,7 +88,7 @@ export default async function WhatIfPage({ params, searchParams }: { params: Pro
             <h3>New evidence for an element</h3>
             {o.elements.map((e) => (
               <fieldset key={e.id} style={{ border: 0, padding: 0, marginBottom: 8 }}>
-                <legend><strong>{e.label}</strong> <span className="muted">({e.claim})</span></legend>
+                <legend><strong>{e.label}</strong> <span className="muted">({e.kind === "defense" ? `defense: ${e.claim}` : e.claim})</span></legend>
                 {box(`add-document:${e.id}`, "A new document or email supports it")}
                 {box(`add-witness:${e.id}`, "A witness confirms it")}
               </fieldset>
