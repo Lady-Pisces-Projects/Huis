@@ -131,7 +131,7 @@ export default async function StrengthPage({ params, searchParams }: { params: P
   return (
     <>
       <p className="sub"><Link href={`/matters/${m.id}`}>← {m.title}</Link> · <Link href={`/matters/${m.id}/dna`}>Case DNA™</Link> · <Link href={`/matters/${m.id}/claims`}>Claims matrix</Link></p>
-      <p><Link className="button" href={`/matters/${m.id}/missing`}>What are we missing?</Link>{" "}<Link className="button" href={`/matters/${m.id}/opposition`}>If I were opposing counsel</Link>{" "}<Link className="button" href={`/matters/${m.id}/what-if`}>What if?</Link>{" "}<Link className="button" href={`/matters/${m.id}/readiness`}>Trial readiness</Link></p>
+      <p><Link className="button" href={`/matters/${m.id}/missing`}>What are we missing?</Link>{" "}<Link className="button" href={`/matters/${m.id}/opposition`}>If I were opposing counsel</Link>{" "}<Link className="button" href={`/matters/${m.id}/benchmarks`}>Federal benchmarks</Link>{" "}<Link className="button" href={`/matters/${m.id}/what-if`}>What if?</Link>{" "}<Link className="button" href={`/matters/${m.id}/readiness`}>Trial readiness</Link></p>
       <p className="notice"><strong>{WORK_PRODUCT_LABEL}</strong></p>
       <h1>Case Outcome Intelligence™</h1>
       <p className="sub">
