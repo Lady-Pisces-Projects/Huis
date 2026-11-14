@@ -7,7 +7,7 @@ Spec: `docs/source/phase-11-case-outcome-intelligence.md`. Built in parts; each 
 | 11.1 | **Case strength, the holes in the case, and next steps** (with "Why did Huis say this?" and attorney override) | Built, tested and reviewed (security review 34: 6 findings, all fixed) |
 | 11.2 | Discovery gap analysis ("What are we missing?") and opposition analysis ("If I were opposing counsel") | Built and tested; through independent review 36 |
 | 11.3 | **Federal benchmarks** (how similar federal cases ended and how long they took; no dollar values) | Built and tested; through independent review 38. Dollar ranges and settlement values stay off: no reliable source (decided by Tracy, 13 November 2026) |
-| 11.4 | Scenario modelling, what-if, trial readiness | Later |
+| 11.4 | Scenario modelling (What if?) and trial readiness | Built and tested; through independent review 37 |
 | — | Pricing (premium add-on: per-report fee, monthly add-on, or credits) | **Tracy's decision**; part 11.1 is available to every plan for now |
 
 ## Part 1 — Case strength, holes and next steps
@@ -81,4 +81,34 @@ At **Matter → Case strength → Federal benchmarks** (`/matters/<id>/benchmark
 **Loading the data** (Huis staff, at hosting time): download `cv88on.zip` from the FJC civil page, unzip it, and run `npx tsx scripts/operator/import-fjc-idb.ts --file cv88on.txt` with the database owner's connection. It keeps cases that ended in the last 10 years (`--years` to change), only district, case type, dates, disposition and judgment (**no dollar fields**), replaces the previous load in one transaction, records the file's SHA-256, and refuses a file whose columns don't match the codebook or where more than 5% of ended cases have dates or codes it can't read or that are missing. Only one load runs at a time (the table is locked for the load). The tables (`huis.federal_cases`, `huis.federal_imports`, migration 0047) hold no firm information; the app can read them and never write them. Until a load, the page says the data hasn't been loaded.
 
 **Tests:** `test/federal-benchmarks.test.ts` (4 tests): reading the codebook's fields and date formats, skipping pending, missing and old cases, no dollar values kept; claim and state mapping; nothing shown under 30 cases; a load, a refused load that changes nothing, the benchmarks on a real Matter, the app unable to change the data, and a client refused. `test/security-review-38.test.ts` (7 tests) covers the review 38 fixes.
+
+## Part 4 — What if? and Trial readiness
+
+Both read the same confirmed Case DNA as case strength, with the same access (firm staff who can see the Matter; clients never), and use the same fixed rules (`src/intelligence/scenarios.ts`). No AI, no probability, no dollar values.
+
+**What if?** (`/matters/<id>/what-if`). The attorney picks up to 20 assumptions and the rules are re-run on a copy of the evidence; **nothing is saved and Case DNA doesn't change** (the choices live in the page address only, as ids). Assumptions:
+
+| Assumption | What the rules see |
+|---|---|
+| A new document or email supports an element | One more supporting fact cited to its own document (each one counts as independent) |
+| A witness confirms an element | One more supporting fact with a witness and no document |
+| Evidence falls away (excluded, rebutted, can't be proved) | That confirmed fact removed everywhere it's used; for a contradicting fact, the contradiction is resolved |
+| A witness becomes unavailable | That person removed as a witness from every fact |
+
+It shows the overall rating before and after, each claim or defense that moves, each element that moves with its new score lines, holes it would close, holes whose severity would change and new holes it would open, and what it doesn't check (whether the evidence exists, is admissible or would be believed: a hypothetical document counts like a real one; damage items never change). Defense elements are marked as the defense's. An assumption that doesn't belong to the Matter's claims is refused.
+
+**Trial readiness** (`/matters/<id>/readiness`). Only what Huis can measure; anything else is shown as **not measured**, never guessed. The figure is the average of the measured categories, and the lowest one is named as the largest current weakness (none is named when everything measured is at 100%). A claim with no elements counts against exhibits and legal research as one element with nothing behind it, so it can't look ready.
+
+| Category | Rule |
+|---|---|
+| Discovery | Not measured: Huis doesn't track discovery requests, responses or deadlines |
+| Witnesses | Supported claim elements with a witness linked to a supporting fact (whether witnesses are prepared isn't tracked) |
+| Exhibits | Claim elements with at least one document or email behind them; unread uploads are mentioned |
+| Legal research | Claim elements with a verified authority on the element or its claim (unverified citations don't count) |
+| Expert support | Expert areas the rules flag (damages amounts; a medical element) with someone in Case DNA whose role names an expert in that area. A role naming a party ("Defendant's …") or the other side isn't counted and is listed, because Huis doesn't record which side the firm represents. Not measured when no area is flagged |
+| Damages documentation | Damage items with an amount and a document or email (0 when no damages are recorded) |
+
+Confidence (High / Medium / Low, with reasons) is the same as case strength's.
+
+**Tests:** `test/scenarios.test.ts` (6 tests): assumptions move the right elements and close or open the right holes without touching the evidence; losing a witness or a fact and resolving a contradiction; refusing assumptions from outside the Matter, more than 20, and malformed input; readiness categories, average and weakest; nothing to measure without claims; on a real Matter, nothing is written and a client is refused. `test/security-review-37.test.ts` (9 tests) covers the review 37 fixes.
 
