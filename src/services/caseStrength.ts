@@ -4,6 +4,7 @@ import { PermissionDeniedError, UserFacingError } from "../errors";
 import { analyze, type ClaimIn, type DamageIn, type FactIn, type Gap, type MatterIn, type SourceRef, type StrengthReport } from "../intelligence/strength";
 import { INTERNAL_ROLES } from "../security/permissions";
 import { discovery, opposition, type Discovery, type Opposition, type PersonIn } from "../intelligence/discovery";
+import { MAX_CHANGES, readiness, whatIf, whatIfOptions, type Change, type Readiness, type WhatIf, type WhatIfInput } from "../intelligence/scenarios";
 import { recordAudit } from "./audit";
 import { authoritiesByNode } from "./authorities";
 import { getContradictions } from "./contradictions";
@@ -179,6 +180,30 @@ export async function discoveryAndOpposition(s: FirmSession, matterId: string): 
   const g = await gather(s, matterId);
   const report = analyze(g.input);
   return { discovery: discovery(g.input, report, g.people, g.suggestedPeople), opposition: opposition(g.input, report), truncated: g.truncated };
+}
+
+/** Part 4: What-If Analysis. Re-runs the rules with the attorney's assumptions; nothing is saved or changed. */
+export async function whatIfAnalysis(s: FirmSession, matterId: string, changes: Change[]): Promise<{ options: WhatIfInput; result: WhatIf | null; truncated: boolean }> {
+  reader(s);
+  await getMatter(s, matterId);
+  const g = await gather(s, matterId);
+  if (changes.length > MAX_CHANGES) throw new UserFacingError(`Test at most ${MAX_CHANGES} assumptions at a time.`);
+  let result: WhatIf | null = null;
+  if (changes.length) {
+    try { result = whatIf(g.input, changes); } catch (err) {
+      if (err instanceof RangeError) throw new UserFacingError(err.message);
+      throw err;
+    }
+  }
+  return { options: whatIfOptions(g.input), result, truncated: g.truncated };
+}
+
+/** Part 4: Trial readiness, from what Huis can measure in confirmed Case DNA. */
+export async function trialReadiness(s: FirmSession, matterId: string): Promise<Readiness & { truncated: boolean }> {
+  reader(s);
+  await getMatter(s, matterId);
+  const g = await gather(s, matterId);
+  return { ...readiness(g.input, analyze(g.input), g.people), truncated: g.truncated };
 }
 
 async function analyzeMatterStrength(s: FirmSession, matterId: string): Promise<StrengthReport & { truncated: boolean }> {
