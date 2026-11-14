@@ -50,7 +50,7 @@ async function counts(s: FirmSession, nos: number, districts: string[] | null): 
 export async function federalBenchmarks(s: FirmSession, matterId: string): Promise<FederalBenchmarks> {
   if (!INTERNAL_ROLES.has(s.actor.role)) throw new PermissionDeniedError("see federal benchmarks");
   const m = await getMatter(s, matterId);
-  const imp = (await s.client.query("SELECT terminated_from, terminated_through, imported_at FROM huis.federal_imports ORDER BY imported_at DESC LIMIT 1")).rows[0];
+  const imp = (await s.client.query("SELECT terminated_from::text AS terminated_from, terminated_through::text AS terminated_through, imported_at FROM huis.federal_imports ORDER BY imported_at DESC LIMIT 1")).rows[0];
   const state = m.jurisdictionState;
   const districts = DISTRICTS_BY_STATE[state] ?? [];
   const claimRows = (await s.client.query<{ label: string }>(

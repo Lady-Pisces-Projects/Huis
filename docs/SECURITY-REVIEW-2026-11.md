@@ -594,6 +594,19 @@ Scope: `src/intelligence/discovery.ts`, the people and links gathered in `src/se
 
 Also: the opposing-counsel page labels every point at the top severity "Most severe", instead of calling the first one the strongest (the rules rank by severity, not by persuasiveness); the "notes only" argument now says there is no document or email behind the element, instead of calling it hearsay; and "another cause" is raised for a defense only when the defense has support.
 
+## Thirty-eighth review — Federal benchmarks (Phase 11 part 3)
+
+Scope: migration 0047 (`huis.federal_cases`, `huis.federal_imports`: public reference data, no firm column, readable by the app and never writable by it), `src/benchmarks/federal.ts`, `src/services/benchmarks.ts`, the operator import `scripts/operator/import-fjc-idb.ts`, the page, and every code mapping against the FJC civil codebook. The reviewer found no access problem, no dollar value and no prediction wording; all 94 district codes, the disposition groups, judgment codes and the pending marker match the codebook. **6 problems, all fixed** (code only); regression tests in `test/security-review-38.test.ts` (7 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R38-1 | High | An ERISA disability-benefits claim was shown as ADA employment cases, and the name Ada ("Ada County") matched the ADA | ERISA checked first; "ADA" matched only as the capitalised acronym or the Act's name |
+| R38-2 | Medium | Free-text claim names landed in the wrong type: negligent misrepresentation as personal injury, Fair Housing as employment, ADA Title III as employment | Such wording gets no benchmark (the page says no type matches) rather than a wrong one |
+| R38-3 | Low | A share refused for too few cases still showed the count behind it ("3 of 8"), so the refused figure could be worked out | Only the total is shown for a refused figure |
+| R38-4 | Medium | The period loaded could show a day early on a server east of UTC | Dates read as text, as elsewhere in Huis |
+| R38-5 | Medium | Two imports at once could leave both loads in the table, doubling every count | The tables are locked for a load |
+| R38-6 | Low | A file with mostly unreadable codes loaded in part, replacing a good load | Unreadable or missing codes count toward the 5% refusal, like dates |
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — since 12 November 2026 a firm can require its own Microsoft 365 or Google Workspace sign-in (PHASE-1, Sign-in security), so the organization's MFA applies to every staff sign-in. Huis doesn't verify MFA itself (no reliable claim in Google's or Microsoft's v2.0 ID tokens). Still open: a Huis passkey for firms without a managed organization, and MFA for Huis staff in the admin portal.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.

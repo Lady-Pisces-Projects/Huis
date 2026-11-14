@@ -82,7 +82,7 @@ describe("loading and using the data", () => {
       const r = await importFile(owner, join(dir, "cv.txt"), 10, new Date("2026-11-13T00:00:00Z"));
       expect(r).toMatchObject({ rowsRead: 41, rowsKept: 40, from: "2023-07-01", through: "2024-01-01" });
       expect(r.skipped.pending).toBe(1);
-      await expect(importFile(owner, join(dir, "bad.txt"), 10, new Date("2026-11-13T00:00:00Z"))).rejects.toThrow(/dates that can't be read/);
+      await expect(importFile(owner, join(dir, "bad.txt"), 10, new Date("2026-11-13T00:00:00Z"))).rejects.toThrow(/dates or codes that can't be read/);
       expect((await owner.query("SELECT count(*)::int AS n FROM huis.federal_cases")).rows[0].n).toBe(40); // the failed load changed nothing
       const cols = (await owner.query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'huis' AND table_name = 'federal_cases'")).rows.map((x) => x.column_name);
       expect(cols.some((c) => /amt|amount|demand/i.test(c))).toBe(false);
@@ -107,7 +107,7 @@ describe("loading and using the data", () => {
     const pctOf = (label: RegExp) => c.national!.shares.find((s) => label.test(s.label))!;
     expect(pctOf(/^Settled/).value).toBe(60);
     expect(pctOf(/^Ended by a trial/).value).toBe(10);
-    expect(pctOf(/for the plaintiff/)).toMatchObject({ n: 3, of: 8, value: null }); // only 8 judgments: under 30, not shown
+    expect(pctOf(/for the plaintiff/)).toMatchObject({ n: null, of: 8, value: null }); // only 8 judgments: under 30, not shown (nor the count inside it)
     expect(c.national!.months).toMatchObject({ median: expect.any(Number) });
     expect(JSON.stringify(b)).not.toMatch(/\$|9999|probab/i);
 

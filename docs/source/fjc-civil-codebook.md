@@ -15,7 +15,7 @@ Reference for Phase 11 part 3 (case value). Chosen by Tracy, 13 November 2026: b
 | Field | Codebook text |
 |---|---|
 | `DISTRICT` | District court in which the case was filed. Utah is `88`. |
-| `NOS` | "A 3 digit statistical code representing the nature of the action filed." Codes Huis maps claims to (checked against the uscourts.gov NOS list): 190 Other Contract; 360 Other Personal Injury; 442 Civil Rights – Employment; 445 Americans With Disabilities – Employment; 710 Fair Labor Standards Act (Non-Union); 751 Family and Medical Leave Act; 790 Other Labor Litigation; 791 ERISA |
+| `NOS` | "A 3 digit statistical code representing the nature of the action filed." Codes Huis maps claims to (checked against the uscourts.gov NOS list): 190 Other Contract; 360 Other Personal Injury; 442 Civil Rights – Employment; 445 Americans With Disabilities – Employment; 710 Fair Labor Standards Act (Non-Union); 751 Family and Medical Leave Act; 791 ERISA |
 | `FILEDATE` / `TERMDATE` | The date the case was filed; the date the district court received the final judgment or the order disposing of the case |
 | `DISP` | Manner of disposition. Dismissals: 2 want of prosecution, 3 lack of jurisdiction, 12 voluntarily, **13 settled**, 14 other. Judgment on: 4 default, 5 consent, 6 motion before trial, **7 jury verdict**, 8 directed verdict, **9 court trial**, 15 arbitrator, 16 stayed pending bankruptcy, 17 other, 18 statistical closing. Transfers/remands: 0, 1, 10, 11. −8 missing |
 | `JUDGMENT` | Final judgment in favor of: 1 plaintiff, 2 defendant, 3 both, 4 unknown; 0/−8 missing |

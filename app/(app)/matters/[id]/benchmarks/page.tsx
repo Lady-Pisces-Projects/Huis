@@ -22,7 +22,7 @@ function Figures({ b }: { b: Benchmark }) {
             {b.shares.map((sh) => (
               <tr key={sh.label}><td>{sh.label}{sh.note ? <div className="muted">{sh.note}</div> : null}</td>
                 <td>{sh.value === null ? <span className="badge muted">Fewer than {MIN_CASES}</span> : `${sh.value}%`}</td>
-                <td className="muted">{sh.n.toLocaleString("en-US")} of {sh.of.toLocaleString("en-US")}</td></tr>
+                <td className="muted">{sh.n === null ? `${sh.of.toLocaleString("en-US")} in total` : `${sh.n.toLocaleString("en-US")} of ${sh.of.toLocaleString("en-US")}`}</td></tr>
             ))}
           </tbody></table>
           {b.months ? <p>Time from filing to the end: median <strong>{b.months.median} months</strong> (middle half: {b.months.p25} to {b.months.p75} months).</p> : null}

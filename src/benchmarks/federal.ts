@@ -16,18 +16,26 @@ export const DISTRICTS_BY_STATE: Record<string, string[]> = {
   DC: ["90"], VI: ["91"], GU: ["93"], MP: ["94"],
 };
 
-/** Nature-of-suit codes (checked against the uscourts.gov list) and the claim names that map to each. First match wins. */
+/**
+ * Nature-of-suit codes (checked against the uscourts.gov list) and the claim names that map to each. First match wins.
+ * Claim names are free text, so wording that belongs to another case type returns no match rather than a wrong one
+ * (review 38): the page then says no federal case type matches.
+ */
 export const NOS_RULES: { nos: number; title: string; match: RegExp }[] = [
-  { nos: 751, title: "Family and Medical Leave Act", match: /\bfmla\b|family and medical leave/i },
-  { nos: 445, title: "Americans With Disabilities – Employment", match: /\bada\b|disabilit/i },
-  { nos: 710, title: "Fair Labor Standards Act (Non-Union)", match: /\bflsa\b|fair labor standards|overtime|minimum wage|unpaid wages?/i },
   { nos: 791, title: "Employee Retirement Income Security Act", match: /\berisa\b/i },
+  { nos: 751, title: "Family and Medical Leave Act", match: /\bfmla\b|family and medical leave/i },
+  // "ADA" only as the capitalised acronym, so the name Ada (Ada County) doesn't match.
+  { nos: 445, title: "Americans With Disabilities – Employment", match: /\bADA\b|americans with disabilities|disability discriminat|failure to accommodate/ },
+  { nos: 710, title: "Fair Labor Standards Act (Non-Union)", match: /\bflsa\b|fair labor standards|overtime|minimum wage|unpaid wages?/i },
   { nos: 442, title: "Civil Rights – Employment", match: /title vii|\badea\b|age discrimination|discriminat|retaliat|harass|hostile work/i },
   { nos: 190, title: "Other Contract", match: /contract/i },
   { nos: 360, title: "Other Personal Injury", match: /personal injury|negligen/i },
 ];
+/** Wording that belongs to a case type Huis doesn't map: no benchmark rather than the wrong one. */
+const NO_MATCH = /fair housing|housing discriminat|title iii|public accommodation|misrepresent|malpractice|\bfraud|section 1983|§ ?1983|voting/i;
 
 export function nosFor(claimLabel: string): { nos: number; title: string } | null {
+  if (NO_MATCH.test(claimLabel)) return null;
   const r = NOS_RULES.find((x) => x.match.test(claimLabel));
   return r ? { nos: r.nos, title: r.title } : null;
 }
@@ -98,10 +106,13 @@ export interface Counts {
   months: { p25: number; median: number; p75: number } | null;
   trialMonths: { median: number; n: number } | null;
 }
-export interface Share { label: string; value: number | null; n: number; of: number; note?: string }
+/** `n` is withheld (null) when the figure is refused, so the refused share can't be worked out from it (review 38). */
+export interface Share { label: string; value: number | null; n: number | null; of: number; note?: string }
 export interface Benchmark { scope: string; total: number; enough: boolean; shares: Share[]; months: Counts["months"]; trialMonths: Counts["trialMonths"]; why: string }
 
-const share = (label: string, n: number, of: number, note?: string): Share => ({ label, n, of, value: of >= MIN_CASES ? Math.round((1000 * n) / of) / 10 : null, note });
+const share = (label: string, n: number, of: number, note?: string): Share => (of >= MIN_CASES
+  ? { label, n, of, value: Math.round((1000 * n) / of) / 10, note }
+  : { label, n: null, of, value: null, note });
 
 export function benchmark(scope: string, c: Counts): Benchmark {
   const enough = c.total >= MIN_CASES;

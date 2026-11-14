@@ -8,7 +8,7 @@
  *
  * Keeps cases that ended in the last N years (default 10), and only district, nature of suit, dates, disposition and
  * judgment. Dollar fields are not imported. Replaces the previous load in one transaction, and refuses the file if
- * more than 5% of the ended cases have dates it can't read (a sign the format isn't what the codebook describes).
+ * more than 5% of the ended cases have dates or codes it can't read or that are missing (a sign the file isn't what the codebook describes).
  */
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
@@ -44,6 +44,8 @@ export async function importFile(db: pg.ClientBase, path: string, years = 10, to
   };
   await db.query("BEGIN");
   try {
+    // One load at a time: a second import waits here, then sees and replaces the first one's rows (review 38).
+    await db.query("LOCK TABLE huis.federal_cases, huis.federal_imports IN ACCESS EXCLUSIVE MODE");
     await db.query("DELETE FROM huis.federal_cases");
     // Opened only now: lines read before the loop starts would be lost.
     const lines = createInterface({ input: createReadStream(path, { encoding: "latin1" }), crlfDelay: Infinity });
@@ -63,8 +65,9 @@ export async function importFile(db: pg.ClientBase, path: string, years = 10, to
     await flush();
     if (!idx) throw new Error("The file is empty.");
     const ended = rowsRead - skipped.pending;
-    if (ended > 0 && skipped["bad-date"] / ended > 0.05) {
-      throw new Error(`${skipped["bad-date"]} of ${ended} ended cases have dates that can't be read. Check the file's date format against the codebook; nothing was loaded.`);
+    const unreadable = skipped["bad-date"] + skipped["bad-value"] + skipped.missing;
+    if (ended > 0 && unreadable / ended > 0.05) {
+      throw new Error(`${unreadable} of ${ended} ended cases have dates or codes that can't be read or are missing. Check the file against the codebook; nothing was loaded.`);
     }
     if (!rowsKept) throw new Error("No cases were kept; nothing was loaded.");
     await db.query(
