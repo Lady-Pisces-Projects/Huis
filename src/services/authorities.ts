@@ -22,7 +22,7 @@ export const KIND_LABELS: Record<AuthorityKind, string> = { case: "Case", statut
 export const STANCES = ["supports", "opposes", "explains"] as const;
 export type Stance = (typeof STANCES)[number];
 
-/** Official public sources, shown with a badge (any secure link is accepted; these are the government's or court's own records, or CourtListener's). */
+/** Recognized free public sources, shown with a badge (any secure link is accepted). Some are government or court sites; CourtListener, Cornell LII and eCFR are unofficial compilations, so the badge never claims an official edition. */
 const OFFICIAL_HOSTS = [
   "courtlistener.com", "law.cornell.edu", "govinfo.gov", "uscode.house.gov", "ecfr.gov", "federalregister.gov", "supremecourt.gov",
   "uscourts.gov", "congress.gov", "le.utah.gov", "utcourts.gov", "eeoc.gov", "dol.gov", "nlrb.gov",

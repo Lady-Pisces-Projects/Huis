@@ -7,10 +7,10 @@ Plain-language answers for attorneys, firm administrators and staff. Updated as 
 ## Safety, security and attorney–client privilege
 
 ### Is attorney–client privilege protected?
-Yes. Protecting privilege is Huis's first rule. Every matter has a red **Privileged & Confidential** folder that can never be switched off or reclassified. People outside the firm (clients, co-counsel, expert witnesses, other authorized third parties) can never see it, search it, or see the names of what's inside it. This is enforced by the database itself, not just by the screens, so a bug in the app can't expose it.
+Huis protects the confidentiality of privileged material; whether a communication is privileged is a legal question for the firm. Protecting privilege is Huis's first rule. Every matter has a red **Privileged & Confidential** folder that can never be switched off or reclassified. People outside the firm (clients, co-counsel, expert witnesses, other authorized third parties) can never see it, search it, or see the names of what's inside it. This is enforced by the database itself, not just by the screens, so a bug in the app can't expose it.
 
 ### What happens if someone moves privileged material somewhere a client can see?
-Huis stops and warns them that this may waive privilege. They must explicitly acknowledge the risk before the move happens, and the acknowledgement is permanently recorded in the item's chain of custody.
+Huis stops and warns them that sharing with anyone other than the client may waive privilege or work-product protection. They must explicitly acknowledge the risk before the move happens, and the acknowledgement is permanently recorded in the item's chain of custody.
 
 ### If an email has a privileged attachment, can it leak through the email?
 No. Attachments filed separately (for example, into the red folder) stay where they were put, even if the email is later moved. A client can't discover a privileged attachment's name by searching the email it came from either.
@@ -288,7 +288,7 @@ On the **Subscription** page, choose **Monthly** ($237 per seat per month) or **
 Your active attorneys and staff, automatically. When you add someone, remove someone or change their role, the number of seats billed follows, and Stripe adjusts the charge for the part of the period left.
 
 ### What happens when our free trial ends before we pay?
-Adding new work (new Matters, evidence, AI questions, imports and people) pauses straight away. For **30 days** everyone can still sign in, open every Matter and document, and export a whole Matter, and firm staff see the date the files will be deleted. **After those 30 days, the trial firm's files and data are permanently deleted.** This also applies if you subscribed during the trial but cancelled before it ended, or the first charge failed. Paying at any point before then keeps everything.
+Adding new work (new Matters, evidence, AI questions, imports and people) pauses straight away. For **at least 30 days** everyone can still sign in, open every Matter and document, and export a whole Matter, and firm staff see the deletion date. The firm's owners are emailed 14 days, 7 days and 1 day before it. **On that date the trial firm's account, files and data are permanently deleted and can't be restored.** The firm is responsible for exporting anything it needs to keep, including records it must retain under professional-conduct rules, court rules or a litigation hold. This also applies if you subscribed during the trial but cancelled before it ended, or the first charge failed. Paying at any point before then keeps everything. The full wording is in the free trial terms (`/trial-terms`), which the firm's owner accepts when creating the firm.
 
 ### What if we pay and later stop?
 **Once your firm has made its first payment, Huis never deletes its cases for non-payment.** If the subscription stops, adding new work pauses, and your Matters and information are kept, ready to open and export, until you subscribe again. If a card payment fails, Stripe retries it, and work carries on for 7 days' grace first.

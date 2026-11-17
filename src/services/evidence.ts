@@ -376,7 +376,8 @@ export async function authorizeDownload(s: FirmSession, evidenceId: string): Pro
 export class SharingAcknowledgementRequired extends UserFacingError {
   constructor() {
     super(
-      "This folder can be seen by people outside the firm (such as the client). Moving material there may waive privilege. " +
+      "This folder can be seen by people outside the firm (such as the client, the client's representatives, co-counsel or experts). " +
+      "Sharing with anyone other than the client may waive privilege or work-product protection. " +
       "Confirm you have reviewed it before moving.",
     );
     this.name = "SharingAcknowledgementRequired";

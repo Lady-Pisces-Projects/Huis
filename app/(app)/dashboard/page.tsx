@@ -4,6 +4,7 @@ import { date } from "../../../lib/ui";
 import { listMatters } from "../../../src/services/matters";
 import { EVENT_KIND_LABELS, upcomingCourtDates } from "../../../src/services/court";
 import { can, INTERNAL_ROLES } from "../../../src/security/permissions";
+import { TRIAL_TERMS_SHORT } from "../../../src/billing/trialTerms";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export default async function Dashboard() {
       <h1>Welcome, {data.actor.fullName.split(" ")[0]}</h1>
       <p className="sub">{staff ? "Here is where your firm's matters stand." : "Here are the matters your law firm has shared with you."}</p>
       {staff && data.c?.plan === "trial" && trialDays !== null ? (
-        <div className="flash success">Free trial: {trialDays} day{trialDays === 1 ? "" : "s"} remaining.</div>
+        <div className="flash success">Free trial: {trialDays} day{trialDays === 1 ? "" : "s"} remaining. {TRIAL_TERMS_SHORT} <Link href="/trial-terms">Trial terms</Link> · <Link href="/subscription">Subscribe</Link></div>
       ) : null}
       {staff ? (
         <div className="card" style={{ marginBottom: 20 }}>

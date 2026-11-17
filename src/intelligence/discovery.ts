@@ -119,7 +119,7 @@ export function discovery(m: MatterIn, r: StrengthReport, people: PersonIn[], su
       if (seenDoc.has(d.evidenceId ?? d.id)) continue;
       if (admissions.length >= MAX_ADMISSIONS) { admissionsTruncated = true; break; }
       seenDoc.add(d.evidenceId ?? d.id);
-      admissions.push({ text: `Admit that the document "${d.title}" is a true and correct copy of what it appears to be.`, basis: `Cited for "${e.label}" (${c.label}).`, href: d.evidenceId ? `/evidence/${d.evidenceId}` : claimHref(c) });
+      admissions.push({ text: `Admit that the document "${d.title}" is a true and correct copy of what it appears to be.`, basis: `Cited for "${e.label}" (${c.label}). Serve a copy of the document with this request unless it has already been furnished (Fed. R. Civ. P. 36(a)(2); Utah R. Civ. P. 36(a)).`, href: d.evidenceId ? `/evidence/${d.evidenceId}` : claimHref(c) });
     }
   }
 
@@ -157,7 +157,7 @@ export function discovery(m: MatterIn, r: StrengthReport, people: PersonIn[], su
 
   const experts: Item[] = [];
   const dmgTotal = m.damages.reduce((a, d) => a + (d.amount ?? 0), 0);
-  if (m.damages.length) experts.push({ title: "Damages", detail: `${plural(m.damages.length, "damage item is", "damage items are")} recorded${dmgTotal ? ` (${dmgTotal.toLocaleString("en-US", { style: "currency", currency: "USD" })} in amounts entered)` : ""}. Lost earnings and benefits are usually proved with an economist or vocational expert.`, href: `${base}/dna` });
+  if (m.damages.length) experts.push({ title: "Damages", detail: `${plural(m.damages.length, "damage item is", "damage items are")} recorded${dmgTotal ? ` (${dmgTotal.toLocaleString("en-US", { style: "currency", currency: "USD" })} in amounts entered)` : ""}. Past lost pay is often proved with payroll records and testimony; future losses (front pay, lost earning capacity) often call for an economist or vocational expert.`, href: `${base}/dna` });
   if (r.claims.some((c) => c.elements.some((e) => isDisability(e.label, c.label)))) experts.push({ title: "Medical", detail: "A disability element is in the claims: a treating provider or medical expert may be needed to prove it.", href: `${base}/claims` });
 
   // Authentication: every document or email the claims rely on, most relied on first.

@@ -621,6 +621,24 @@ Scope: migration 0047 (`huis.federal_cases`, `huis.federal_imports`: public refe
 | R38-5 | Medium | Two imports at once could leave both loads in the table, doubling every count | The tables are locked for a load |
 | R38-6 | Low | A file with mostly unreadable codes loaded in part, replacing a good load | Unreadable or missing codes count toward the 5% refusal, like dates |
 
+## Thirty-ninth review — Whole product before launch (17 November 2026)
+
+Scope: everything on `main` after Phase 11, end to end: sign-in and sessions, passwords and usernames (there are none: Microsoft and Google sign-in only), secrets in the working tree and every commit on every branch, headers and network rules, every role including the client portal and Huis staff, row-level security on every firm table, deletion, dependencies, plus a separate check of every legal statement and link against primary sources, a crawl of every page as every kind of user, and the free trial terms. Attorney-client privilege held everywhere: a client member of a Matter was refused by every internal page and service and read zero rows of notes, Case DNA, AI output, evidence or audit events. No secrets, default accounts or backdoors were found. **2 security problems and 12 legal-accuracy problems, all fixed**; regression tests in `test/security-review-39.test.ts` (9 tests) and `test/trial-terms.test.ts` (4 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R39-1 | Medium | Four routes (`/api/uploads`, Matter export, the invitation sign-in button, annotations without a Content-Length) read a request body of any size before checking who was asking, so anyone could exhaust the server's memory | Bodies are read only after the origin and session checks, through a size-limited reader (4–16 KB) |
+| R39-2 | Low | Next.js 16.4.3 is inside advisory GHSA-mfr8-8qww-v76h (Huis doesn't use the affected feature), and CI's audit now fails on a test-tool advisory (picomatch) with no fixed release | Next.js 16.4.6; CI blocks on any production advisory and reports test-tool ones |
+| L39-1 | Medium | Request-for-admission drafts didn't mention Utah's tiered limits (URCP 26(c)(5)) | Limits note always shown |
+| L39-2 | Medium | Genuineness drafts didn't say a copy must be served (FRCP 36(a)(2); URCP 36(a)) | Added to each draft |
+| L39-3 | Medium | Website said court dates come "with reminders, so nothing slips"; Huis proposes dates for confirmation and doesn't calculate deadlines | Reworded |
+| L39-4 | Medium | "Disability discrimination" and "Failure to Accommodate" mapped to the wrong federal case type (case-sensitive match) | Matched in any case; "ADA" still only as the acronym |
+| L39-5 | Medium | "Official source" badge on unofficial compilations (CourtListener, Cornell LII, eCFR) | "Recognized free source", with what the badge does and doesn't mean |
+| L39-6 | Medium | Website trial buttons only join the waitlist | Tracked as O-14 (the app isn't hosted yet) |
+| L39-7–12 | Low | Privilege-waiver warning named the client as the risk; FAQ said privilege is "protected" outright; expert wording overstated; FMLA sources didn't say they are Tenth Circuit wording or cite 29 C.F.R. § 825.220(c); an unverifiable backup promise in the new trial terms | Reworded or corrected; hosting claims tracked under O-2, O-3, O-13 |
+
+Trial terms: the professional non-payment and deletion notice is now one source (`src/billing/trialTerms.ts`), shown and accepted (checkbox) before a firm is created, recorded with the firm and in its audit log (migration 0048, unchangeable by the app), and shown on the public `/trial-terms` page, the Subscription page, the dashboard trial banner, the sign-up panel, the website, and in every deletion warning email. Attorney review tracked as O-12. Hosting-time items the code can't cover are tracked as O-13.
+
 ## Still open (tracked, not code defects)
 1. **MFA enforcement** — since 12 November 2026 a firm can require its own Microsoft 365 or Google Workspace sign-in (PHASE-1, Sign-in security), so the organization's MFA applies to every staff sign-in. Huis doesn't verify MFA itself (no reliable claim in Google's or Microsoft's v2.0 ID tokens). Still open: a Huis passkey for firms without a managed organization, and MFA for Huis staff in the admin portal.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.
