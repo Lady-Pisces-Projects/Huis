@@ -8,7 +8,9 @@ No build step and nothing stored on the site. The one function emails trial sign
 
 ```
 index.html        the homepage (all CSS and JS inline)
-favicon.svg       gold "H" monogram
+favicon.ico       gold pillar "H" from the Huis Law logo (16, 32, 48 px)
+icon-192.png      the same mark for browsers and phones
+apple-touch-icon.png  home-screen icon (iPhone, iPad)
 api/waitlist.js   trial sign-up form -> email to the Huis team (Resend)
 vercel.json       security headers (HSTS, CSP, no framing)
 ```
