@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { changeRoleAction, disableUserAction, endSessionsAction, inviteUserAction, reissueInviteAction } from "../../../lib/actions";
 import { getFlash, withSession } from "../../../lib/server";
 import { FlashBanner, ROLE_LABELS } from "../../../lib/ui";
@@ -12,10 +13,10 @@ export default async function Users({ searchParams }: { searchParams: Promise<{ 
   const data = await withSession(async (s) => {
     if (!can(s.actor.role, "users.manage")) return null;
     const loc = await s.client.query<{ id: string; name: string }>("SELECT id, name FROM huis.firm_locations ORDER BY created_at");
-    return { users: await listUsers(s), locations: loc.rows, me: s.actor.userId };
+    return { users: await listUsers(s), locations: loc.rows, me: s.actor.userId, role: s.actor.role };
   });
   if (!data) notFound();
-  const { users, locations, me } = data;
+  const { users, locations, me, role } = data;
   return (
     <>
       <h1>Users &amp; Access</h1>
@@ -24,6 +25,9 @@ export default async function Users({ searchParams }: { searchParams: Promise<{ 
         matters you explicitly add them to.
       </p>
       <FlashBanner flash={flash} />
+      {["firm_owner", "managing_partner", "firm_admin"].includes(role) ? (
+        <p><Link href="/users/sign-in">Sign-in security</Link>: require your firm&apos;s own Microsoft 365 or Google Workspace account.</p>
+      ) : null}
       <div className="card">
         <h2>Add a person</h2>
         <form action={inviteUserAction} className="row">

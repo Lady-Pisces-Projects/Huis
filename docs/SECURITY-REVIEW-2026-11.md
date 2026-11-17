@@ -402,7 +402,244 @@ Also fixed while reviewing: overlapping passages could produce a second, cut-sho
 | Note | Info | A few sign-in calls still used plain requests or read answers whole; API answers that trickle in had no overall deadline | Sign-in calls use the time limits and size caps; API answers (not file downloads) also have an overall deadline (5 minutes by default) |
 | Note | Info | A worker started before the database update would have refused every import | A missing chosen version is treated as "not recorded", never as "changed" |
 
+## Twenty-fourth review — Phase 10 part 1 (subscriptions, the trial, seats and usage)
+
+**Result:** nothing High. The reviewer found no way to take more seats than the firm has (including two people added at once, turning a license back on, or other license paths), no way for one firm to read another's account, and reading, export, Matter Brain indexing and court reminders all keep working when new work is paused. The reviewer confirmed 4 Medium and 3 Low problems. **All fixed**, in `db/migrations/0029_review24.sql` and the app and worker, with regression tests in `test/security-review-24.test.ts` (8 tests; the first 7 fail against the code as reviewed).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R24-1 | Medium | The trial's storage limit counted only what was uploaded: an archive under 2 GB could unpack to many times that | Unpacked files count too; unpacking keeps what fits and says the trial's storage limit was reached |
+| R24-2 | Medium | Clients and other outside users were told the firm's billing standing ("payment is overdue") | Outside users get a neutral "adding new documents is paused, contact your law firm"; the firm-wide notice is for firm staff only |
+| R24-3 | Medium | A suspended firm couldn't sign in at all, though Huis promises it can still read and export | Suspended firms sign in with new work paused; "disabled" is still a full lock-out |
+| R24-4 | Medium | A working copy asked for before the trial ended failed (five tries) once it had; queued mail filings and imports also retried pointlessly | Copies of evidence already held finish (their storage still counts); anything the subscription refuses fails at once with its reason instead of retrying |
+| R24-5 | Low | The subscription summary let a caller with no role through (not reachable from the app) | Fails closed |
+| R24-6 | Low | The operator command accepted impossible dates (31 February became 3 March) and was an hour off in summer | Impossible dates refused; the end of the day in Utah, summer time included |
+| R24-7 | Low | The AI-question limit was checked only after the AI work was done | Checked first; the database checks again when the question is saved |
+
+## Twenty-fifth review — Phase 10 part 3 (firm billing)
+
+**Result:** nothing High. Locked items couldn't be changed directly, issued invoices couldn't be edited or deleted, numbering held under concurrent issues (no duplicates, no gaps on rollback), clients never saw drafts, time sheets, expenses or rates, walls and other firms were kept out, and billing can't be used to get around the subscription pause. The reviewer confirmed 1 Medium–High, 1 Medium and 4 Low problems. **All fixed**, in `db/migrations/0031_review25.sql` and the service and pages, with regression tests in `test/security-review-25.test.ts` (6 tests; all failed against the code as reviewed).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R25-1 | Medium–High | An item taken off (or changed on, or added to) a draft while that draft was being issued could be billed and stay unbilled too, or stay locked with content different from what was billed | Changes to an item wait for an issue in progress and are refused once it's issued; issuing holds its items while it copies them |
+| R25-2 | Medium | A timekeeper could undo a billing manager's write-down on their own time (changing the rate or the date brought back the standard rate) | Only billing staff change an entry's rate; a date change keeps it |
+| R25-3 | Low–Medium | A lead attorney (not billing staff) editing a colleague's time wiped its rate to $0 | Same fix: the rate stays as it was |
+| R25-4 | Low | A draft whose items were all made non-billable was issued as a numbered $0 invoice with no lines | Non-billable items leave the draft when it's issued; an invoice with nothing billable isn't issued |
+| R25-5 | Low | Colleagues' rates (hidden in the rate table) could be read from the rate copied onto each time entry | The app can't read that column: rates come from a function that gives only your own, unless you're billing staff or invoice the Matter. Others see a dash; Matter totals come from a total-only function |
+| R25-6 | Low | A timekeeper who can't invoice could move their own items on and off drafts | Only those who invoice the Matter change what's on an invoice |
+
+**Noted for later:** invoice and payment dates are checked against the server's date, not the firm's time zone (an evening invoice can default to tomorrow's date in Utah); time and expense dates have no limits; time with no rate is billed at $0 with a warning on the page only.
+
+## Twenty-sixth review — Phase 10 part 4 (financial evidence analysis)
+
+**Result:** no access leaks: clients and outside users, walls and other firms were kept out, and row-level security on document text follows the evidence exactly. The reviewer confirmed 1 High, 2 Medium–High/Medium performance problems, 6 parsing problems and 3 more by reading. **All fixed**, in `src/finance/analyze.ts` and `src/services/finance.ts`, with regression tests in `test/security-review-26.test.ts` (12 tests; all failed against the code as reviewed).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R26-1 | High | One uploaded file with a long run of digits made the amount pattern backtrack: seconds to minutes per view, close to an hour at the size limit, stalling the server each time the Matter's analysis was opened (a client could upload such a file) | The amount pattern is bounded on both sides (linear on any input), and lines longer than 4,000 characters aren't read |
+| R26-2 | Medium–High | The duplicate rule compared each transaction with every earlier one within 3 days (5 seconds for a busy 5,000-line ledger, per document) | Matched through a map by amount, with each date's day worked out once |
+| R26-3 | Medium | Whole-number spreadsheet amounts had no limit (Infinity, NaN, inexact totals) | Bounded like other amounts ($1 billion); the Matter summary says when totals are too large to add up exactly |
+| R26-4 | Medium | Dates without a year got the wrong one: a December–January statement put January in the earlier year (with a false gap), "since 2009" in a footer set the year, and "99" became 2099 | The year comes from the statement period line only, across a year end; two-digit years 70–99 are the 1900s |
+| R26-5 | Medium | European and other number formats were read as wrong amounts with no warning (1.234,56 as $1.23; 192.168.1.1 as $192.16), and day-first dates as month-first | Such numbers aren't read as amounts; a document with comma-decimal amounts says Huis can't read that format yet; a document whose dates can only be day-first is read day-first |
+| R26-6 | Medium | A line of prose like "Date, amount and balance are shown below" switched a statement into spreadsheet mode and dropped the rest | A spreadsheet header is only looked for before the first transaction, and must be a real header row |
+| R26-7 | Low–Medium | " - " inside a description was read as a minus sign, beating the running balance (false flags) | A minus sign must touch the number |
+| R26-8 | Low–Medium | "Daily ending balance" lines (a date and a balance) were counted as deposits | Lines in a daily balance section aren't transactions |
+| R26-9 | Low–Medium | A document's analysis could show the text of an item no longer clean (a container found to hold a threat) | Only clean items |
+| R26-10 | Low | A document opened under another Matter's address recorded a view before showing "not found" | The Matter is checked before the text is read |
+| R26-11 | Medium | The summary could load about 1 GB of text into memory | Only the part the parser reads is fetched |
+| R26-12 | Low | Unsigned amounts without a running balance were all counted as money in, and the page didn't say so | Amounts under a Withdrawals or Debits heading are money out; the page says plainly that otherwise an unsigned amount counts as money in |
+
+## Twenty-seventh review — Phase 10 part 2a (Stripe, the 7-day / 1 seat / 1 Matter trial, the 30-day deletion date)
+
+**Result:** customer matching across firms, refusing unknown prices, fetching Stripe's current state instead of trusting the notification, the webhook login's narrow rights, sending people only to Stripe's pages, Stripe id checks (no server-side request forgery), the locking behind the seat and Matter limits, and the signature check all held. The reviewer confirmed 1 High, 2 Medium and 2 Low problems with working tests. **All fixed**, in `db/migrations/0033_review27.sql` and the webhook route; regression tests in `test/security-review-27.test.ts` (5 tests), with more in `test/stripe.test.ts`.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R27-1 | High | Subscribing during the trial lifted the 1-seat / 1-Matter limits at once, though Stripe charges nothing until the trial ends and the firm could cancel first: unlimited Matters, seats, storage and AI without paying | A `trialing` subscription is recorded, but the firm stays on the trial, with its limits, until Stripe reports the first payment (`active`). Cancelling during the trial leaves the trial's own end date in charge, and the firm can subscribe again |
+| R27-2 | Medium | A failed renewal (`past_due`) moved the paid-through date to the end of the unpaid period, so the 7 days' grace never ran out | Only a paid (`active`) subscription moves the paid-through date forward |
+| R27-3 | Medium | When Huis set a firm's plan by hand after its Stripe subscription ended, the ended state stayed: a paying firm was still paused and shown a deletion date (and part 2b would have deleted it) | Huis setting a plan by hand clears the Stripe subscription state; Stripe can end access only for the firm's current Stripe subscription |
+| R27-4 | Low | Clients and other outside users could read the firm's Stripe status, access end date, paid-through date and Stripe customer straight from `huis.firms` | The app may read only the firm's non-billing columns; billing state goes through functions that check the person's role |
+| R27-5 | Low–Medium | The webhook read the whole body into memory before checking its size (a chunked request of any size, no signature needed) | The body is read a piece at a time and refused past 512 KB |
+
+Also closed (raised as unconfirmed): a second subscription completed while the first is live no longer replaces it (double checkout); an abandoned checkout (`incomplete_expired`) never ends access. Still open from this review: promotion codes (checkout accepts every active code in the Stripe account, so keep only intended codes active); a wrong or rotated Stripe key makes every notification fail, and Stripe disables the endpoint after a few days of failures, so Stripe's webhook failure emails must go to someone who acts on them.
+
+## Twenty-eighth review — the trial rules of 11 November 2026 and reading a case description
+
+**Result:** who may have a description read (other firms, clients, read-only users, other staff, walled Matters), quotes taken from the stored note, `first_paid_at` (the app can't set or clear it; a trial subscription not yet charged and failed payments don't set it), and the AI count's dates all held, and no input made the description reader slow (worst about 94 ms at 5,000 characters). The reviewer confirmed 3 Medium and 3 Low problems with working tests. **All fixed**, in `db/migrations/0035_review28.sql`, `src/services/caseDescription.ts`, `src/dna/describe.ts` and the Subscription page and FAQ wording; regression tests in `test/security-review-28.test.ts` (6 tests), with more in `test/trial-rules.test.ts`.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R28-1 | Medium | Any staff member could create "Huis suggested" Case DNA items from any note they wrote, with any label, kind or date (no creator recorded, no audit entry, and they can't be deleted) | Only a note titled "Case description". A person's, organization's or event's label is set by the database to the cited words; a claim must be one of the fixed claims the rules suggest; an event's date must appear in its words; each reading is audited |
+| R28-2 | Medium | One description could be replayed into thousands of suggestions, filling the Matter's 2,000 cap so Huis stopped suggesting anything from evidence | One reading per description (a second is refused), at most 40 suggestions, the cap checked for each |
+| R28-3 | Medium | Deleting your own Matter Brain answers or agent turns gave trial AI questions back, so "100 for the whole trial" had no real limit | Questions asked are counted in a tally that only grows (`huis.ai_question_tally`), which the app can't read or change |
+| R28-4 | Low | An emoji earlier in a description shifted every quote after it (JavaScript and the database count positions differently) | Positions are converted to characters before they're sent |
+| R28-5 | Low | A long description with line breaks that the form accepted could make creating the Matter fail (browsers send a line break as two characters) | Line breaks are normalised before the length check |
+| R28-6 | Low–Medium | The page and FAQ promised "once your firm has subscribed, Huis never deletes its cases", but a firm that subscribed during the trial and cancelled, or whose first charge failed, is still deleted (correctly) | The wording now says "once your firm has made its first payment", and says when a trial subscription still counts as unpaid |
+
+Still open from this review: a **100%-off promotion code** would make Stripe report a first "payment" of $0, so that firm would count as paid and never be deleted. Founding-member codes should be partial discounts, or Tracy decides whether a free code counts as paying.
+
+## Twenty-ninth review — Sign in with Google
+
+**Result:** no account takeover, account linking or cross-provider problem. Accounts are keyed on the provider and its account id, never the email; a sign-in started with one provider can't be finished at the other's callback; state, nonce and PKCE are sound; only `openid email profile` is requested and no refresh token is kept; no open redirects or token leaks; the Microsoft refactor behaves as before. The reviewer confirmed 2 Low problems with working tests, and raised one older Medium concern. **All fixed**; regression tests in `test/security-review-29.test.ts` (2 tests) and `test/google-signin.test.ts`.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R29-1 | Low | Google's authorized-party claim (`azp`) wasn't checked, so a token issued to another app with Huis among several audiences would pass (not exploitable today: tokens come straight from Google with the client secret, but it would be if this check were reused for tokens from a browser) | With several audiences `azp` is required; when present it must be Huis |
+| R29-2 | Low | A token without an expiry would be accepted (the library checks expiry only when present); Microsoft's check had the same gap | Expiry and issued-at are required for both providers; Google tokens must be under an hour old |
+| Concern 1 | Medium (older, widened by Google) | An invitation could be accepted through a direct link to the sign-in start address, skipping the invitation page, so someone could be sent a "sign in to Huis" link that joined their account to a firm they didn't recognise | The invitation page names the firm and the person invited (`huis.invitation_preview`), and accepting is a button on that page: a POST checked to come from Huis itself. A link carrying an invitation is ignored |
+
+Also fixed: a Google name longer than sign-up allows (200 characters) is trimmed, so onboarding doesn't fail on it. Still open from this review: **enforcing multi-factor sign-in** (the users table has `mfa_required`, but nothing checks it; personal Google accounts may have no organisation-managed MFA). Options: check the token's `amr` claim, or let a firm limit sign-in to its own Workspace or Microsoft 365 domain.
+
+## Thirtieth review — the Huis admin portal (Phase 10 part 6)
+
+**Result:** no way for Huis staff to reach client content. The portal's database login (`huis_platform`) has no table rights, can create nothing, and can call only the `platform_*` account functions; search is parameterised and escaped; history shows account events only; `disabled` can't be set; each cookie is sealed with its purpose, so no other Huis cookie works as the admin cookie; an admin sign-in never creates or joins a firm and refuses anyone not in `HUIS_STAFF`; every change re-checks staff, takes the staff name from `HUIS_STAFF` and requires a note. The reviewer confirmed 1 High and 1 Medium problem with working tests. **Both fixed**, in `db/migrations/0038_review30.sql` and the firm page; regression tests in `test/security-review-30.test.ts` (4 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R30-1 | High | A trial end in the past was accepted (only the 90-day upper limit was checked), so a typo or a stolen staff session could give a firm a deletion date that had already passed, with no warnings, even a firm that had subscribed in Stripe during its trial | A trial end must be in the future (the date field also refuses past days), and a firm with a Stripe subscription keeps Stripe's dates: change the trial in Stripe |
+| R30-2 | Medium | "Plan by agreement" was refused only for `active`, `trialing` and `past_due` Stripe subscriptions; an `unpaid` or `paused` one could restart when its invoice was paid, silently turning an Enterprise agreement back into Professional and charging the firm twice | Refused whenever a Stripe subscription exists that isn't finished (`canceled` or `incomplete_expired`) — `huis.platform_stripe_live` |
+
+Also fixed from the reviewer's unconfirmed concerns: staff notes no longer block deleting a firm (the note keeps its text, without the firm link, `ON DELETE SET NULL`); `huis.lock_firm_usage` is no longer callable by every role through Postgres's default PUBLIC grant; the suspend form now says Stripe keeps charging when the firm pays through Stripe.
+
+Still open from this review, for part 2b (deletion) and later:
+- Restoring a trial firm suspended past its trial end + 30 days makes it due for deletion at once; part 2b must not delete without the warnings, whatever the dates say.
+- Part 2b decides whether staff notes about a deleted firm are kept (they hold account remarks, never client content).
+- Signing out of the admin portal clears the cookie but doesn't revoke it: a copied cookie works for up to an hour. Removing someone from `HUIS_STAFF` ends their access at once.
+- The staff name in the staff log is supplied by the app, not enforced by the database: anyone holding the platform database login could write any name.
+
+## Thirty-first review — Sign-in security (a firm's own Microsoft 365 or Google Workspace only)
+
+**Result:** every way of opening a firm session goes through the per-request check (pages, API routes, sign-in, choosing a firm, invitations, onboarding, mailbox and integration callbacks, Stripe billing, exports); the app can no longer use the old invitation function; the new tables can't be read or written directly; moving someone between staff and outside roles is blocked in the database; clients and other outside people are exempt; Microsoft's tenant comes from the verified identity and the personal-account tenant is refused; odd Google domains (case, trailing dot, unicode, lookalike suffixes) fail closed. The reviewer confirmed 1 Medium, 1 Medium–Low and 1 Low problem, plus two wrong claims in the docs. **All fixed**, in `db/migrations/0040_review31.sql`, `src/db/tenant.ts`, the sign-out route, the Sign-in security page and the docs; regression tests in `test/security-review-31.test.ts` (4 tests), with more in `test/signin-rules.test.ts`.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R31-1 | Medium | A firm administrator or managing partner could turn the rule on with an organization no owner uses, locking every owner out with no way back | The rule must leave at least one active firm owner able to sign in |
+| R31-2 | Medium–Low | Staff the rule left out could never come back with the firm's account (their account stays linked to the old sign-in), though the page said they could | A firm owner (only) can give them a one-time "sign in again" link, accepted only with an account that meets the rule; it moves their existing account, ends old sessions and is audited. Re-link invitations can only be created through that function |
+| R31-3 | Low | The rule only suspended sessions: turning it off brought old cookies back, and signing out while refused ended nothing | Turning the rule on ends the sessions of the staff it leaves out; signing out works without the rule check; the rule is checked before the session version so people are told why |
+| Docs | Low | "Switching off a departing employee ends their Huis access at once" and "a Google account leaving the Workspace is out at once" were not true | Corrected: switching off stops new sign-ins, an open Huis session lasts up to 8 hours unless ended in Huis; a Google account that leaves the Workspace is refused from its next Google sign-in |
+
+Still open from this review: refused sign-ins and invitation attempts aren't recorded; a connected mailbox of someone the rule leaves out keeps syncing (connecting a mailbox doesn't check the rule); a firm administrator can turn off a rule an owner set; Google users who last signed in before this change show as personal until their next sign-in (fails closed). The Google domain is taken from the token the app verified, so that side relies on the app, like the rest of sign-in.
+
+## Thirty-second review — Deleting an unpaid trial's data (Phase 10 part 2b)
+
+**Result:** only the worker login can run the deletion; the guard bypass is tied to the deleting transaction and checks each row's firm; the moment of deletion is re-checked under a lock; a firm that ever paid is never deleted; all tables without a firm id are handled, there are no reference cycles, every file is under `firm/<id>/` and the prefix check is exact; the full made-up firm is deleted to the last row. The reviewer confirmed 2 High, 2 Medium and 1 Low problem with working tests. **All fixed**, in `db/migrations/0042_review32.sql` and `src/billing/trialDeletion.ts`; regression tests in `test/security-review-32.test.ts` (8 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R32-1 | High | A trial firm whose Stripe subscription could still charge (trialing, past due, unpaid, paused) was deleted, and Stripe could then take a payment for a deleted firm | Held (no date, warnings or deletion) until Stripe reports the subscription finished |
+| R32-2 | High | Warnings sent before Huis suspended a firm still counted after it was restored: deleted seconds after the restore, with no new email | Deletion rounds: becoming eligible again starts a new round with a full 14 days and fresh warnings |
+| R32-3 | Medium | Warnings that started late went out together, naming a date already past, then the deletion followed with no further email | A round's date is never sooner than 14 days after it starts; warnings name it and go out one at a time |
+| R32-4 | Medium | One firm whose files (or rows) couldn't be deleted blocked every other firm's deletion and stopped the rest of the worker's loop | Failures recorded and retried later with back-off; the worker moves on and never stops its loop |
+| R32-5 | Low | The blanket DELETE grant let `huis_security` erase the staff log and the tombstones | Revoked on those two tables |
+
+Also: the usual date is 720 hours after the trial ended, so it doesn't move an hour across a daylight-saving change. Still open: the Stripe customer record isn't deleted; a payment whose notice arrives after deletion isn't refunded automatically; staff notes about a deleted firm stay in the staff log (they hold account remarks); a new table added later without the delete grant would make deletion fail (recorded and retried, visible in the failure table) until fixed.
+
+## Thirty-third review — White label (Phase 10 part 5)
+
+**Result:** no way to read another firm's branding or logo, no way for staff without the right role or clients to change it, and no way to put CSS or HTML into the page (colours are plain `#rrggbb`, checked by the database; the name is escaped). The reviewer confirmed 3 Low problems, a docs error and one header problem with no current exploit. **All fixed**, in `db/migrations/0044_review33.sql`, `src/services/branding.ts`, the Branding page and `next.config.ts`; regression tests in `test/security-review-33.test.ts` (4 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R33-1 | Low–Medium | Branding could be changed after an Enterprise agreement ran out, or while Huis had suspended the firm | Changing it needs the firm active with access |
+| R33-2 | Low | The name accepted invisible, direction-reversing and line-separator characters (a blank name, "Smith‮LLP" shown reversed, also in the audit log) | Refused; Unicode spaces trimmed; a letter or digit required |
+| R33-3 | Low | A firm that left Enterprise couldn't delete its saved logo or name | Removing works on any plan |
+| Headers | — | Each `/api` route's own content policy (`default-src 'none'; sandbox`) was being replaced by the page policy, so served files relied on their type and `nosniff` alone. Not exploitable today (images with `nosniff`; evidence as `octet-stream` attachments) | Every `/api` response now gets the strictest policy (nothing runs) |
+| Docs | Low | "Links and buttons use the accent colour": buttons use the menu colour | Corrected |
+
+Also: logos over 4000 pixels a side are refused (a 31 KB PNG could unpack to about 1 GB); branding rows go with their firm. Still open: the name can resemble "Huis Law" (the "on Huis Law" line stays under it); menu text drawn slightly transparent can fall a little under 4.5:1 on a colour that only just passes; the logo isn't re-encoded (photo metadata in a JPEG reaches the firm's users); a logo stays in a shared browser's cache up to an hour after sign-out.
+
+## Thirty-fourth review — Case Outcome Intelligence, part 1 (Phase 11)
+
+**Result:** clients, other outside people and staff outside an ethical wall can't reach the page, the action or any of the data it reads (checked in the page, the service and the database); read-only staff can read but not review; gap reviews are tied to the firm's own Matter and record the real reviewer; only confirmed facts and links count; quotes from walled or unclean evidence stay hidden; nothing says probability; no HTML injection (authority links are https-only). The reviewer confirmed 1 High and 4 Medium problems about honesty, performance and permissions, and 1 Low. **All fixed**; regression tests in `test/security-review-34.test.ts` (7 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R34-1 | High | The overall rating was the average's band: a claim with an unsupported element (Weak) could sit under an overall "Strong", and a claim with no elements was left out (so half a case read "Very strong") | The overall rating is never better than the weakest claim; a claim with no elements counts as Insufficient information |
+| R34-2 | Medium | An attorney's own note counted as the second "independent source", so one document, a note and a witness read "Very strong — two independent documents or emails" | Extra-source points count documents and emails only; wording matches |
+| R34-3 | Medium | Authorities cited on an element never appeared ("No authorities cited") | The panel shows the element's and the claim's authorities |
+| R34-4 | Medium | Every claim was read twice per page view (the claims matrix, then again): thousands of queries for a large Matter | Read in a fixed number of queries, whatever the size |
+| R34-5 | Medium | A default grant gave `huis_security` SELECT and DELETE on every future table, including add-only platform tables (undoing R32-5 for new ones) | Removed; granted per table, with the existing test checking every firm table |
+| R34-6 | Low | Any well-formed gap key could be stored (unlimited made-up reviews) | Only gaps in the current analysis of that Matter |
+
+Also: only people linked as "witness to" count as witnesses (not someone merely involved); the causation match no longer catches "related to" or "because" alone, and an element starting with "Damages" is about damages; a damage item counts as documented only with a document or email behind it. Still open: near-copies of one document (a PDF and the same file attached to an email) count as separate sources; confirmed contradictions count toward Credibility even when their statement is hidden from the reader; viewing the page isn't audited (like Case DNA and the claims matrix).
+
+## Thirty-fifth review — End-to-end check of Phases 10 and 11 together (13 November 2026)
+
+Run on `main` after Google sign-in, the admin portal, sign-in rules, unpaid-trial deletion, white label and case strength were merged. Alongside it: a clean install, typecheck, all 590 tests, build and `npm audit` (0); a crawl of every reachable page as owner, attorney, paralegal, read-only staff and client on made-up data (873 pages loaded, no server errors; every 404 was someone correctly kept out: a walled Matter, another person's mailbox or drive, staff tools for a client); and the full made-up firm, now with branding, a gap review, a sign-in rule and a staff note, deleted to the last row (776 rows).
+
+**Result:** nothing new blocks deletion; later migrations kept every earlier protection; the admin portal, Stripe holds, deletion rounds and branding access work together; the strict `/api` policy breaks nothing; clients see only the firm's name and logo from white label. The reviewer confirmed 3 interaction problems. **All fixed**, in `db/migrations/0046_review35.sql`; regression tests in `test/security-review-35.test.ts` (4 tests) and `test/review-35-extras.test.ts` (2 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R35-1 | Medium–Low | With a sign-in rule on, an administrator could disable or demote the only owner the rule lets in, leaving owners who are all refused (review 31 only checked when the rule was turned on) | While a rule exists, the last owner it allows can't be disabled or demoted (database trigger) |
+| R35-2 | Low | An unused "sign in again" link kept working after the rule was turned off: whoever held it could move an existing account to any account | Accepting needs the rule still on and the person still refused; turning the rule off revokes outstanding links |
+| R35-3 | Low | Cloud-drive imports and listings, and email filings, queued by someone the rule now refuses still ran as them | Stopped, like mailbox sync |
+
+Also added: **lockout recovery** in the admin portal. If a firm can no longer sign in under its rule (for example its Google Workspace domain changed), Huis staff can turn the rule off with a note, recorded in the firm's audit log and the staff log. Checked: a firm by agreement already gets `first_paid_at` (set whenever the plan leaves the trial), so it can never become deletable. Still open: a file being written by a running job at the moment a firm is deleted could land after its files are removed (most likely a working copy).
+
+## Thirty-sixth review — "What are we missing?" and "If I were opposing counsel" (Phase 11 part 2)
+
+Scope: `src/intelligence/discovery.ts`, the people and links gathered in `src/services/caseStrength.ts`, and the two pages. No new tables or database permissions: both views read the same confirmed Case DNA as case strength, for firm staff who can see the Matter, and clients never see them. The reviewer found no access problem; the 7 problems were wrong or misleading output a lawyer might rely on. **All fixed** (code only, no migration); regression tests in `test/security-review-36.test.ts` (9 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R36-1 | Medium | The failure-to-mitigate argument disappeared when any fact said "applied for" or "interview" (for example "applied for FMLA leave", the protected activity in most FMLA cases, or "HR interviewed Pat") | Only phrases about looking for work count (applied for a job or position, job applications or interviews, new employment, unemployment benefits) |
+| R36-2 | Medium | A person tied to a fact used in two places was judged by only the last place, so a witness to a fact contradicting "Adverse action" could drop off the deposition list | Every use of a fact is kept and checked |
+| R36-3 | Low | A fact supporting two elements produced the same request for admission twice | One request per fact |
+| R36-4 | Low | Requests built from a question ("Did HR know…?") or a quotation ended in broken punctuation | Question-worded facts get no draft and are counted on the page ("reword as a statement"); quotes keep their own full stop; the page says when only the first 30 are drafted |
+| R36-5 | Medium–Low | Employment wording on other claims: payroll and benefits records for breach-of-contract damages, "didn't look for comparable work" as mitigation for a business, and a medical expert for "Qualified for the position" in a Title VII claim | Damages requests, next steps and the mitigation argument follow the claim type; "qualified" counts as a disability element only in a disability claim |
+| R36-6 | Low | Two claims needing the same request showed only the first claim as the reason | Merged requests name every claim and element they cover |
+| R36-7 | Low | A person linked to a timeline fact or event outside the claims was described as "not linked to any fact" | Those links are counted; such a person is described as linked, but not to a fact behind a claim element |
+
+Also: the opposing-counsel page labels every point at the top severity "Most severe", instead of calling the first one the strongest (the rules rank by severity, not by persuasiveness); the "notes only" argument now says there is no document or email behind the element, instead of calling it hearsay; and "another cause" is raised for a defense only when the defense has support.
+
+## Thirty-seventh review — What if? and Trial readiness (Phase 11 part 4)
+
+Scope: `src/intelligence/scenarios.ts`, `whatIfAnalysis` and `trialReadiness` in `src/services/caseStrength.ts`, and the two pages. No new tables or permissions; nothing is written (a what-if lives only in the page address, as ids checked against the Matter). The reviewer found no access problem and no write to Case DNA; the `c` parameter is strictly parsed, capped and never reaches SQL, and an id behind an ethical wall gets the same answer as a made-up one. The 6 problems were misleading output. **All fixed** (code only, no migration); regression tests in `test/security-review-37.test.ts` (9 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R37-1 | Medium | With every measured category at 100%, readiness still named "your largest current weakness" | No weakness is named then; the page says everything measured is at 100% |
+| R37-2 | Medium | A claim with no elements was left out, so a Matter could read 100% ready while case strength rated it "Insufficient information" | Such a claim counts against exhibits and research as one element with nothing behind it, and is named |
+| R37-3 | Low | What if? didn't show a hole that became more severe (a defense becoming fully supported goes from Medium to High under the same key) | Listed under "Holes that would change", with before and after severity |
+| R37-4 | Low | Defense elements weren't marked as the defense's, and the caveat about defenses and damages was wrong | Marked in the options and the assumption text; caveat corrected |
+| R37-5 | Low | Anyone with "expert" in their role counted (including the other side's), and one expert covered every flagged area | An expert counts only for an area their role names; a role naming a party or the other side isn't counted and is listed, since Huis doesn't record which side the firm represents |
+| R37-6 | Low | The two pages lacked case strength's notice that items behind an ethical wall aren't counted | Added |
+
+Also: the 20-assumption limit is checked before the Matter is read.
+## Thirty-eighth review — Federal benchmarks (Phase 11 part 3)
+
+Scope: migration 0047 (`huis.federal_cases`, `huis.federal_imports`: public reference data, no firm column, readable by the app and never writable by it), `src/benchmarks/federal.ts`, `src/services/benchmarks.ts`, the operator import `scripts/operator/import-fjc-idb.ts`, the page, and every code mapping against the FJC civil codebook. The reviewer found no access problem, no dollar value and no prediction wording; all 94 district codes, the disposition groups, judgment codes and the pending marker match the codebook. **6 problems, all fixed** (code only); regression tests in `test/security-review-38.test.ts` (7 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R38-1 | High | An ERISA disability-benefits claim was shown as ADA employment cases, and the name Ada ("Ada County") matched the ADA | ERISA checked first; "ADA" matched only as the capitalised acronym or the Act's name |
+| R38-2 | Medium | Free-text claim names landed in the wrong type: negligent misrepresentation as personal injury, Fair Housing as employment, ADA Title III as employment | Such wording gets no benchmark (the page says no type matches) rather than a wrong one |
+| R38-3 | Low | A share refused for too few cases still showed the count behind it ("3 of 8"), so the refused figure could be worked out | Only the total is shown for a refused figure |
+| R38-4 | Medium | The period loaded could show a day early on a server east of UTC | Dates read as text, as elsewhere in Huis |
+| R38-5 | Medium | Two imports at once could leave both loads in the table, doubling every count | The tables are locked for a load |
+| R38-6 | Low | A file with mostly unreadable codes loaded in part, replacing a good load | Unreadable or missing codes count toward the 5% refusal, like dates |
+
+## Thirty-ninth review — Whole product before launch (17 November 2026)
+
+Scope: everything on `main` after Phase 11, end to end: sign-in and sessions, passwords and usernames (there are none: Microsoft and Google sign-in only), secrets in the working tree and every commit on every branch, headers and network rules, every role including the client portal and Huis staff, row-level security on every firm table, deletion, dependencies, plus a separate check of every legal statement and link against primary sources, a crawl of every page as every kind of user, and the free trial terms. Attorney-client privilege held everywhere: a client member of a Matter was refused by every internal page and service and read zero rows of notes, Case DNA, AI output, evidence or audit events. No secrets, default accounts or backdoors were found. **2 security problems and 12 legal-accuracy problems, all fixed**; regression tests in `test/security-review-39.test.ts` (9 tests) and `test/trial-terms.test.ts` (4 tests).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| R39-1 | Medium | Four routes (`/api/uploads`, Matter export, the invitation sign-in button, annotations without a Content-Length) read a request body of any size before checking who was asking, so anyone could exhaust the server's memory | Bodies are read only after the origin and session checks, through a size-limited reader (4–16 KB) |
+| R39-2 | Low | Next.js 16.4.3 is inside advisory GHSA-mfr8-8qww-v76h (Huis doesn't use the affected feature), and CI's audit now fails on a test-tool advisory (picomatch) with no fixed release | Next.js 16.4.6; CI blocks on any production advisory and reports test-tool ones |
+| L39-1 | Medium | Request-for-admission drafts didn't mention Utah's tiered limits (URCP 26(c)(5)) | Limits note always shown |
+| L39-2 | Medium | Genuineness drafts didn't say a copy must be served (FRCP 36(a)(2); URCP 36(a)) | Added to each draft |
+| L39-3 | Medium | Website said court dates come "with reminders, so nothing slips"; Huis proposes dates for confirmation and doesn't calculate deadlines | Reworded |
+| L39-4 | Medium | "Disability discrimination" and "Failure to Accommodate" mapped to the wrong federal case type (case-sensitive match) | Matched in any case; "ADA" still only as the acronym |
+| L39-5 | Medium | "Official source" badge on unofficial compilations (CourtListener, Cornell LII, eCFR) | "Recognized free source", with what the badge does and doesn't mean |
+| L39-6 | Medium | Website trial buttons only join the waitlist | Tracked as O-14 (the app isn't hosted yet) |
+| L39-7–12 | Low | Privilege-waiver warning named the client as the risk; FAQ said privilege is "protected" outright; expert wording overstated; FMLA sources didn't say they are Tenth Circuit wording or cite 29 C.F.R. § 825.220(c); an unverifiable backup promise in the new trial terms | Reworded or corrected; hosting claims tracked under O-2, O-3, O-13 |
+
+Trial terms: the professional non-payment and deletion notice is now one source (`src/billing/trialTerms.ts`), shown and accepted (checkbox) before a firm is created, recorded with the firm and in its audit log (migration 0048, unchangeable by the app), and shown on the public `/trial-terms` page, the Subscription page, the dashboard trial banner, the sign-up panel, the website, and in every deletion warning email. Attorney review tracked as O-12. Hosting-time items the code can't cover are tracked as O-13.
+
 ## Still open (tracked, not code defects)
-1. **MFA enforcement** — Microsoft sign-in doesn't yet require proof of MFA. Plan: require the firm's Microsoft MFA (Conditional Access) or a Huis passkey. Part of the end-of-build Azure/hosting step.
+1. **MFA enforcement** — since 12 November 2026 a firm can require its own Microsoft 365 or Google Workspace sign-in (PHASE-1, Sign-in security), so the organization's MFA applies to every staff sign-in. Huis doesn't verify MFA itself (no reliable claim in Google's or Microsoft's v2.0 ID tokens). Still open: a Huis passkey for firms without a managed organization, and MFA for Huis staff in the admin portal.
 2. **Administrator-level tampering** — someone with full database superuser access could switch off the protective rules and rewrite history consistently. The hash chains make ordinary tampering detectable, but defeating a superuser needs the chain's latest fingerprint stored outside the database (e.g. a daily signed export). Planned with production hosting.
-3. **License limits** — admins can add licenses freely until billing (Phase 10) enforces seat counts.
+3. ~~**License limits**~~ — seat counts are enforced by the database since Phase 10 part 1 (review 24).

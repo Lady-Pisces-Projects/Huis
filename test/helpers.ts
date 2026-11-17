@@ -28,6 +28,10 @@ export interface TestDatabase {
   db: HuisDb;
   /** Background worker connection (huis_worker role). */
   worker: pg.Pool;
+  /** Stripe webhook connection (huis_billing role: can only record Stripe's state). */
+  billing: pg.Pool;
+  /** Huis admin portal connection (huis_platform role: account functions only). */
+  platform: pg.Pool;
   /** Superuser connection, used only to simulate attacks such as tampering. */
   admin: pg.Pool;
   drop(): Promise<void>;
@@ -49,29 +53,46 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   await runMigrations(adminUrl);
 
   const admin = new pg.Pool({ connectionString: adminUrl, max: 2 });
+  // Test firms start on the trial; its limits (Phase 10) are lifted here so other tests aren't limited by them.
+  // test/subscriptions.test.ts puts them back to check them.
+  await admin.query("UPDATE huis.plans SET seat_limit = NULL, matter_limit = NULL, storage_limit_bytes = NULL, ai_questions_per_month = NULL WHERE code = 'trial'");
   await admin.query(`CREATE ROLE ${appUser} LOGIN PASSWORD '${appPassword}' NOSUPERUSER NOBYPASSRLS IN ROLE huis_app`);
 
   const db = HuisDb.fromUrl(withCredentials(adminUrl, appUser, appPassword));
   const workerUser = `${name}_worker`;
   await admin.query(`CREATE ROLE ${workerUser} LOGIN PASSWORD '${appPassword}' NOSUPERUSER NOBYPASSRLS IN ROLE huis_worker`);
   const worker = new pg.Pool({ connectionString: withCredentials(adminUrl, workerUser, appPassword), max: 2 });
+  const billingUser = `${name}_billing`;
+  await admin.query(`CREATE ROLE ${billingUser} LOGIN PASSWORD '${appPassword}' NOSUPERUSER NOBYPASSRLS IN ROLE huis_billing`);
+  const billing = new pg.Pool({ connectionString: withCredentials(adminUrl, billingUser, appPassword), max: 2 });
+  const platformUser = `${name}_platform`;
+  await admin.query(`CREATE ROLE ${platformUser} LOGIN PASSWORD '${appPassword}' NOSUPERUSER NOBYPASSRLS IN ROLE huis_platform`);
+  const platform = new pg.Pool({ connectionString: withCredentials(adminUrl, platformUser, appPassword), max: 2 });
 
   // Dropping the database at teardown ends any idle connections; that's expected.
   admin.on("error", () => undefined);
   worker.on("error", () => undefined);
+  billing.on("error", () => undefined);
+  platform.on("error", () => undefined);
   return {
     db,
     worker,
+    billing,
+    platform,
     admin,
     async drop() {
       await db.close();
       await worker.end();
+      await billing.end();
+      await platform.end();
       await admin.end();
       const c = new pg.Client({ connectionString: ADMIN_URL });
       await c.connect();
       await c.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
       await c.query(`DROP ROLE IF EXISTS ${appUser}`);
       await c.query(`DROP ROLE IF EXISTS ${workerUser}`);
+      await c.query(`DROP ROLE IF EXISTS ${billingUser}`);
+      await c.query(`DROP ROLE IF EXISTS ${platformUser}`);
       await c.end();
     },
   };

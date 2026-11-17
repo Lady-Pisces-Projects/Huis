@@ -64,6 +64,8 @@ export async function askAgent(s: FirmSession, conversationId: string, question:
   const c = await myConversation(s, conversationId);
   // AI features follow the firm's setting, agents included (security review 14, F10).
   if ((await getAiProviderSetting(s)) === "off") throw new AiDisabledError();
+  // Subscription first (security review 24, R24-7); the database checks again when the question is saved.
+  await s.client.query("SELECT huis.my_ai_question_check()");
   const r = route(q, await routeContext(s, c.matterId), pick);
   if (r.agent === "matter") {
     const id = await askMatter(s, c.matterId, q, c.id);

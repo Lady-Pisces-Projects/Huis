@@ -28,9 +28,21 @@ import {
 import { addCourtEvent, addNoticeSender, decideCourtEvent, deleteCourtEvent, removeNoticeSender, setCourtEventDone, updateCourtEvent } from "../src/services/court";
 import { markAlertsRead, setAlertPreferences } from "../src/services/alerts";
 import { browse, disconnectIntegration, importFiles } from "../src/services/integrations";
+import {
+  addExpense, addTime, createDraftInvoice, deleteDraftInvoice, deleteExpense, deleteTime, issueInvoice, recordPayment, removeFromDraft,
+  removeRate, setRate, updateDraftNotes, voidInvoice,
+} from "../src/services/billing";
 import { ROLES } from "../src/security/permissions";
-import { UserFacingError } from "../src/errors";
-import { act, db, getPending, setSessionCookie, withSession } from "./server";
+import { SignInRuleError, UserFacingError } from "../src/errors";
+import { TRIAL_TERMS_VERSION } from "../src/billing/trialTerms";
+import { setSignInRule } from "../src/services/signinRule";
+import { MAX_LOGO_BYTES, setBranding, setLogo } from "../src/services/branding";
+import { reviewGap } from "../src/services/caseStrength";
+import { act, db, getPending, getSession, setFlash, setSessionCookie, userMessage, withSession } from "./server";
+import { syncSeatsAfterPeopleChange } from "./billing";
+import { stripeConfig } from "../src/billing/stripe";
+import { openPortal, startCheckout } from "../src/services/stripe-billing";
+import { saveCaseDescription } from "../src/services/caseDescription";
 
 const text = (fd: FormData, key: string) => {
   const v = fd.get(key);
@@ -47,6 +59,7 @@ export async function createFirmAction(fd: FormData): Promise<void> {
   const pending = await getPending();
   if (!pending) redirect("/signin?reason=expired");
   return act("/onboarding", "Your firm is ready.", async () => {
+    if (text(fd, "acceptTrialTerms") !== "yes") throw new UserFacingError("Please read and accept the free trial terms to create your firm.");
     const firmName = z.string().trim().min(2).max(200).parse(text(fd, "firmName"));
     const base = firmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50) || "firm";
     const res = await signUpFirm(db(), {
@@ -58,6 +71,7 @@ export async function createFirmAction(fd: FormData): Promise<void> {
       ownerName: text(fd, "ownerName") ?? pending.name,
       authProvider: pending.provider as "microsoft" | "google",
       authSubject: pending.subject,
+      trialTermsVersion: TRIAL_TERMS_VERSION,
     });
     await setSessionCookie({ firmId: res.firmId, userId: res.ownerUserId, provider: pending.provider, subject: pending.subject });
     return { redirectTo: "/dashboard" };
@@ -71,7 +85,13 @@ export async function chooseFirmAction(fd: FormData): Promise<void> {
   // Re-check: only accounts that belong to this verified identity.
   const account = (await resolveIdentity(db(), pending.provider, pending.subject)).find((a) => a.userId === userId);
   if (!account) redirect("/select-firm");
-  await setSessionCookie({ firmId: account.firmId, userId: account.userId, provider: pending.provider, subject: pending.subject });
+  try {
+    await setSessionCookie({ firmId: account.firmId, userId: account.userId, provider: pending.provider, subject: pending.subject });
+  } catch (err) {
+    // The firm requires its own Microsoft 365 or Google Workspace account (sign-in security).
+    if (err instanceof SignInRuleError) redirect("/signin?reason=org");
+    throw err;
+  }
   redirect("/dashboard");
 }
 
@@ -116,7 +136,12 @@ export async function createMatterAction(fd: FormData): Promise<void> {
       practiceArea: text(fd, "practiceArea"),
       restricted: fd.get("restricted") === "on",
     });
-    return { redirectTo: `/matters/${m.id}`, message: `Matter ${m.huisNumber} created.` };
+    // Phase 10 part 2a: the case description, read automatically (never counts as an AI question).
+    const d = await saveCaseDescription(s, m.id, typeof fd.get("description") === "string" ? String(fd.get("description")) : undefined);
+    const extra = d === null ? ""
+      : d.suggested > 0 ? ` Huis read the case description and suggested ${d.suggested} item${d.suggested === 1 ? "" : "s"} (people, dates and possible claims) to confirm in Case DNA.`
+      : " The case description is saved as the Matter's first note.";
+    return { redirectTo: d && d.suggested > 0 ? `/matters/${m.id}/dna` : `/matters/${m.id}`, message: `Matter ${m.huisNumber} created.${extra}` };
   }));
 }
 
@@ -149,18 +174,22 @@ export async function linkContactAction(fd: FormData): Promise<void> {
 // ---- Users -----------------------------------------------------------
 
 export async function inviteUserAction(fd: FormData): Promise<void> {
-  return act("/users", "Person added.", () => withSession(async (s) => {
-    const u = await inviteUser(s, {
-      email: text(fd, "email") ?? "",
-      fullName: text(fd, "fullName") ?? "",
-      role: z.enum(ROLES).parse(text(fd, "role")),
-      locationId: text(fd, "locationId") ?? "",
+  return act("/users", "Person added.", async () => {
+    const result = await withSession(async (s) => {
+      const u = await inviteUser(s, {
+        email: text(fd, "email") ?? "",
+        fullName: text(fd, "fullName") ?? "",
+        role: z.enum(ROLES).parse(text(fd, "role")),
+        locationId: text(fd, "locationId") ?? "",
+      });
+      return {
+        message: `${u.fullName} was added. Send them this one-time link (valid 7 days). It is shown only once.`,
+        secretLink: inviteLink(u.invitationToken),
+      };
     });
-    return {
-      message: `${u.fullName} was added. Send them this one-time link (valid 7 days). It is shown only once.`,
-      secretLink: inviteLink(u.invitationToken),
-    };
-  }));
+    await syncSeatsAfterPeopleChange();
+    return result;
+  });
 }
 
 export async function reissueInviteAction(fd: FormData): Promise<void> {
@@ -174,15 +203,51 @@ export async function reissueInviteAction(fd: FormData): Promise<void> {
 }
 
 export async function changeRoleAction(fd: FormData): Promise<void> {
-  return act("/users", "Role updated.", () => withSession(async (s) => {
-    await changeUserRole(s, text(fd, "userId") ?? "", z.enum(ROLES).parse(text(fd, "role")));
-  }));
+  return act("/users", "Role updated.", async () => {
+    await withSession(async (s) => {
+      await changeUserRole(s, text(fd, "userId") ?? "", z.enum(ROLES).parse(text(fd, "role")));
+    });
+    await syncSeatsAfterPeopleChange();
+  });
 }
 
 export async function disableUserAction(fd: FormData): Promise<void> {
-  return act("/users", "Access removed.", () => withSession(async (s) => {
-    await disableUser(s, text(fd, "userId") ?? "");
-  }));
+  return act("/users", "Access removed.", async () => {
+    await withSession(async (s) => {
+      await disableUser(s, text(fd, "userId") ?? "");
+    });
+    await syncSeatsAfterPeopleChange();
+  });
+}
+
+// ---- Subscription (Phase 10 part 2: Stripe) ----------------------------------
+
+/** Sends the person to Stripe's own page, or back to the Subscription page with a message. */
+async function toStripe(open: (ctx: { firmId: string; userId: string; sessionVersion: number }) => Promise<string>): Promise<never> {
+  const session = await getSession();
+  if (!session) redirect("/signin");
+  let url: string;
+  try {
+    url = await open({ firmId: session.firmId, userId: session.userId, sessionVersion: session.sessionVersion });
+  } catch (err) {
+    console.error("[huis] Stripe page not opened:", err instanceof Error ? err.name : "unknown");
+    const id = await setFlash({ kind: "error", message: userMessage(err) });
+    redirect(`/subscription?f=${id}`);
+  }
+  redirect(url);
+}
+
+export async function startCheckoutAction(fd: FormData): Promise<void> {
+  const cfg = stripeConfig();
+  if (!cfg) throw new UserFacingError("Online payment isn't set up yet. Contact Huis to subscribe.");
+  const interval = z.enum(["month", "year"]).parse(text(fd, "interval"));
+  return toStripe((ctx) => startCheckout(db(), ctx, cfg, { interval, baseUrl: authConfig().baseUrl }));
+}
+
+export async function openBillingPortalAction(): Promise<void> {
+  const cfg = stripeConfig();
+  if (!cfg) throw new UserFacingError("Online payment isn't set up yet. Contact Huis to subscribe.");
+  return toStripe((ctx) => openPortal(db(), ctx, cfg, { baseUrl: authConfig().baseUrl }));
 }
 
 // ---- Evidence -----------------------------------------------------------
@@ -614,4 +679,123 @@ export async function integrationDisconnectAction(fd: FormData): Promise<void> {
   const id = text(fd, "connectionId") ?? "";
   return act("/integrations", "Disconnected. Huis no longer holds a sign-in for that account; files already imported stay in their Matters.",
     () => withSession(async (s) => { await disconnectIntegration(s, id); }));
+}
+
+// ---------------------------------------------------------------------------
+// Firm billing (Phase 10 part 3)
+// ---------------------------------------------------------------------------
+const matterBillingPath = (fd: FormData) => `/matters/${encodeURIComponent(text(fd, "matterId") ?? "")}/billing`;
+const invoicePath = (fd: FormData) => `${matterBillingPath(fd)}/invoices/${encodeURIComponent(text(fd, "invoiceId") ?? "")}`;
+
+export async function addTimeAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Time recorded.", () => withSession(async (s) => {
+    await addTime(s, text(fd, "matterId") ?? "", {
+      workDate: text(fd, "workDate"), duration: text(fd, "duration") ?? "", description: text(fd, "description") ?? "",
+      billable: fd.get("billable") === "on", userId: text(fd, "userId"), rate: text(fd, "rate"),
+    });
+  }));
+}
+export async function deleteTimeAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Time removed.", () => withSession(async (s) => { await deleteTime(s, text(fd, "entryId") ?? ""); }));
+}
+export async function addExpenseAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Expense recorded.", () => withSession(async (s) => {
+    await addExpense(s, text(fd, "matterId") ?? "", {
+      incurredOn: text(fd, "incurredOn"), description: text(fd, "description") ?? "", amount: text(fd, "amount") ?? "", billable: fd.get("billable") === "on",
+    });
+  }));
+}
+export async function deleteExpenseAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Expense removed.", () => withSession(async (s) => { await deleteExpense(s, text(fd, "expenseId") ?? ""); }));
+}
+export async function createDraftInvoiceAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Draft invoice created. Check it, then issue it.", () => withSession(async (s) => {
+    const id = await createDraftInvoice(s, text(fd, "matterId") ?? "", text(fd, "through") ?? null);
+    return { redirectTo: `${matterBillingPath(fd)}/invoices/${id}` };
+  }));
+}
+export async function updateDraftNotesAction(fd: FormData): Promise<void> {
+  return act(invoicePath(fd), "Saved.", () => withSession(async (s) => { await updateDraftNotes(s, text(fd, "invoiceId") ?? "", fd.get("notes") ?? ""); }));
+}
+export async function removeFromDraftAction(fd: FormData): Promise<void> {
+  const kind = fd.get("kind") === "expense" ? "expense" : "time";
+  return act(invoicePath(fd), "Taken off this invoice (back to unbilled).", () => withSession(async (s) => { await removeFromDraft(s, kind, text(fd, "itemId") ?? ""); }));
+}
+export async function deleteDraftInvoiceAction(fd: FormData): Promise<void> {
+  return act(matterBillingPath(fd), "Draft deleted; its items are unbilled again.", () => withSession(async (s) => { await deleteDraftInvoice(s, text(fd, "invoiceId") ?? ""); }));
+}
+export async function issueInvoiceAction(fd: FormData): Promise<void> {
+  return act(invoicePath(fd), "Issued.", () => withSession(async (s) => {
+    const n = await issueInvoice(s, text(fd, "invoiceId") ?? "", { issuedOn: text(fd, "issuedOn"), dueOn: text(fd, "dueOn") });
+    return { message: `Issued as ${n}. Its lines and total won't change; the client can see it on their portal.` };
+  }));
+}
+export async function voidInvoiceAction(fd: FormData): Promise<void> {
+  if (fd.get("confirm") !== "on") {
+    return act(invoicePath(fd), "", async () => { throw new UserFacingError("Tick the box to confirm voiding this invoice."); });
+  }
+  return act(invoicePath(fd), "Voided. Its items are unbilled again.", () => withSession(async (s) => { await voidInvoice(s, text(fd, "invoiceId") ?? ""); }));
+}
+export async function recordPaymentAction(fd: FormData): Promise<void> {
+  return act(invoicePath(fd), "Payment recorded.", () => withSession(async (s) => {
+    const st = await recordPayment(s, text(fd, "invoiceId") ?? "", {
+      amount: text(fd, "amount") ?? "", receivedOn: text(fd, "receivedOn"), method: text(fd, "method"), reference: text(fd, "reference") ?? "",
+    });
+    return { message: st === "paid" ? "Payment recorded. The invoice is paid in full." : "Payment recorded." };
+  }));
+}
+export async function setRateAction(fd: FormData): Promise<void> {
+  return act("/billing", "Rate saved. New time uses it from that date.", () => withSession(async (s) => {
+    await setRate(s, { userId: text(fd, "userId"), matterId: text(fd, "matterId") ?? null, rate: text(fd, "rate") ?? "", effectiveFrom: text(fd, "effectiveFrom") });
+  }));
+}
+export async function removeRateAction(fd: FormData): Promise<void> {
+  return act("/billing", "Rate removed.", () => withSession(async (s) => { await removeRate(s, text(fd, "rateId") ?? ""); }));
+}
+
+
+export async function setSignInRuleAction(fd: FormData): Promise<void> {
+  const provider = z.enum(["any", "microsoft", "google"]).parse(text(fd, "provider"));
+  return act("/users/sign-in", provider === "any" ? "Staff can sign in with any Microsoft or Google account they're invited with."
+    : "From now on, staff sign in only with your firm's own account.", () => withSession(async (s) => {
+    await setSignInRule(s, provider);
+  }));
+}
+
+/** Sign-in security: a one-time link for someone the firm's sign-in rule leaves out (firm owners only). */
+export async function relinkAction(fd: FormData): Promise<void> {
+  return act("/users/sign-in", "New sign-in link created.", () => withSession(async (s) => {
+    const token = await issueInvitation(s, text(fd, "userId") ?? "");
+    return {
+      message: "Send this one-time link to them. They must open it and sign in with your firm's own account; it works once, within 7 days, and is shown only once.",
+      secretLink: inviteLink(token),
+    };
+  }));
+}
+
+/** White label (Enterprise): the firm's display name and colours. */
+export async function setBrandingAction(fd: FormData): Promise<void> {
+  return act("/branding", "Branding saved.", () => withSession(async (s) => {
+    if (fd.get("clear") === "1") { await setBranding(s, { displayName: "", brandColor: "", accentColor: "" }); return; }
+    await setBranding(s, { displayName: text(fd, "displayName") ?? "", brandColor: text(fd, "brandColor") ?? "", accentColor: text(fd, "accentColor") ?? "" });
+  }));
+}
+
+/** White label (Enterprise): upload or remove the firm's logo. The database checks the file's first bytes. */
+export async function setLogoAction(fd: FormData): Promise<void> {
+  return act("/branding", "Logo saved.", () => withSession(async (s) => {
+    if (fd.get("remove") === "1") { await setLogo(s, null); return; }
+    const file = fd.get("logo");
+    if (!(file instanceof File) || file.size === 0) throw new UserFacingError("Choose a PNG, JPEG or WebP image.");
+    if (file.size > MAX_LOGO_BYTES) throw new UserFacingError("The logo can be up to 256 KB.");
+    await setLogo(s, Buffer.from(await file.arrayBuffer()));
+  }));
+}
+
+/** Case Outcome Intelligence: an attorney's answer to a gap (set aside, add context, put back). */
+export async function reviewGapAction(fd: FormData): Promise<void> {
+  const matterId = z.uuid().parse(text(fd, "matterId"));
+  return act(`/matters/${matterId}/strength`, "Saved.", () => withSession(async (s) => {
+    await reviewGap(s, matterId, { gapKey: text(fd, "gapKey"), decision: text(fd, "decision"), note: text(fd, "note") ?? "" });
+  }));
 }

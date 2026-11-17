@@ -7,10 +7,10 @@ Plain-language answers for attorneys, firm administrators and staff. Updated as 
 ## Safety, security and attorney–client privilege
 
 ### Is attorney–client privilege protected?
-Yes. Protecting privilege is Huis's first rule. Every matter has a red **Privileged & Confidential** folder that can never be switched off or reclassified. People outside the firm (clients, co-counsel, expert witnesses, other authorized third parties) can never see it, search it, or see the names of what's inside it. This is enforced by the database itself, not just by the screens, so a bug in the app can't expose it.
+Huis protects the confidentiality of privileged material; whether a communication is privileged is a legal question for the firm. Protecting privilege is Huis's first rule. Every matter has a red **Privileged & Confidential** folder that can never be switched off or reclassified. People outside the firm (clients, co-counsel, expert witnesses, other authorized third parties) can never see it, search it, or see the names of what's inside it. This is enforced by the database itself, not just by the screens, so a bug in the app can't expose it.
 
 ### What happens if someone moves privileged material somewhere a client can see?
-Huis stops and warns them that this may waive privilege. They must explicitly acknowledge the risk before the move happens, and the acknowledgement is permanently recorded in the item's chain of custody.
+Huis stops and warns them that sharing with anyone other than the client may waive privilege or work-product protection. They must explicitly acknowledge the risk before the move happens, and the acknowledgement is permanently recorded in the item's chain of custody.
 
 ### If an email has a privileged attachment, can it leak through the email?
 No. Attachments filed separately (for example, into the red folder) stay where they were put, even if the email is later moved. A client can't discover a privileged attachment's name by searching the email it came from either.
@@ -46,7 +46,10 @@ Yes. Every download and every time someone reads a document's text is recorded i
 Yes, through the client portal, and only into the matter's **Client Uploads** folder. Clients see only what's in client-shared folders. They never see firm work product or the red privileged folder.
 
 ### How do people sign in?
-With their firm's Microsoft account, and only by invitation. Invitations are single-use and expire after 7 days. Accounts are never linked automatically by email address. Signing out ends the session on every device, and an administrator can end a user's sessions or disable them immediately.
+With their Microsoft or Google account. A new firm starts its 7-day trial at `/signup`; everyone else joins a firm by invitation, and the invitation page names the firm before they accept. Huis asks Microsoft or Google only for your name and email address. Invitations are single-use and expire after 7 days. Accounts are never linked automatically by email address. Signing out ends the session on every device, and an administrator can end a user's sessions or disable them immediately.
+
+### Can we require our firm's own accounts, and multi-factor sign-in?
+Yes. Under Users & Access → Sign-in security, your firm's owner or an administrator can require staff to sign in with the firm's own Microsoft 365 or Google Workspace account. Personal Gmail and Outlook accounts are then refused, and your organization's own rules apply to every sign-in, including its required multi-factor sign-in and switching off a departing employee's account, which stops them signing in (to end a Huis session already open, also use Remove access in Huis). Huis takes the organization from the administrator's own sign-in, and at least one firm owner must sign in with it, so nobody can lock the firm out. Staff who are left out can be given a new one-time sign-in link by a firm owner. Clients and other outside people sign in with their own accounts and see only the Matters you add them to. Huis never sees a password; multi-factor sign-in is set in Microsoft Entra or the Google Admin console.
 
 ### Has Huis been independently security-tested?
 Yes, at every stage. After each part is built, a separate reviewer that did not write the code attacks it with working exploit attempts against a real database and real malicious files. The reviewer assumes an attacker already has access to the app's own database connection. Every confirmed issue is fixed, and each fix gets a permanent automated test so it can't quietly return. A part isn't released until the reviewer's own attacks no longer work.
@@ -268,3 +271,46 @@ Yes, and no. Connect your own Google account, then use **Choose files in Google 
 
 ### What about Google Drive, Filevine, Clio and StrongSuit?
 Google Drive comes next: first with Google's own file picker (Huis can only open the files you pick), then full browsing once Google's security assessment is done. Filevine and Clio need developer access from those companies, and StrongSuit (which supports an API connection and a user-interface merger) is being discussed with them. The Integrations page shows where each stands.
+
+### How long is the free trial, and what does it include?
+7 days, with no card needed. The trial includes 1 seat (the person who signs up), 1 Matter, 2 GB of evidence and 100 AI questions for the whole trial, so you can see Huis work on a real case. Clients, co-counsel and experts you invite don't take a seat.
+
+### What counts as an AI question?
+A question you type to Matter Brain or to one of the AI agents (timeline, email, evidence, contradictions, privilege). Each one counts once, and deleting an answer doesn't give the question back. Everything Huis does by itself is free and unlimited, on the trial too: reading, scanning and searching your files, building the timeline, suggesting people, dates and claims in Case DNA, reading your case description, and analysing the Matter.
+
+### What happens when I describe the case while creating a Matter?
+Huis reads the description straight away and suggests the people, organizations, key dates and possible claims it mentions, each pointing to the words it came from. You confirm or reject them in Case DNA. The description is saved as the Matter's first note, so Matter Brain can search it. It's automatic and doesn't use any AI questions. For now Huis reads it with fixed, explainable rules (names with a title such as "Ms." or "Dr.", company names ending in Inc., LLC and similar, dates, and words that point to a claim), so check each suggestion and add anything it missed.
+
+### How do we pay?
+On the **Subscription** page, choose **Monthly** ($237 per seat per month) or **Yearly** ($2,370 per seat per year, two months free). You pay on Stripe's secure checkout page; Huis never sees your card number. Founding-member codes are entered on that page. If you subscribe while the trial still has more than 2 days left, billing starts when the trial ends. **Manage billing** opens Stripe's portal, where you can update the card, see invoices, switch between monthly and yearly, or cancel.
+
+### How many seats are we billed for?
+Your active attorneys and staff, automatically. When you add someone, remove someone or change their role, the number of seats billed follows, and Stripe adjusts the charge for the part of the period left.
+
+### What happens when our free trial ends before we pay?
+Adding new work (new Matters, evidence, AI questions, imports and people) pauses straight away. For **at least 30 days** everyone can still sign in, open every Matter and document, and export a whole Matter, and firm staff see the deletion date. The firm's owners are emailed 14 days, 7 days and 1 day before it. **On that date the trial firm's account, files and data are permanently deleted and can't be restored.** The firm is responsible for exporting anything it needs to keep, including records it must retain under professional-conduct rules, court rules or a litigation hold. This also applies if you subscribed during the trial but cancelled before it ended, or the first charge failed. Paying at any point before then keeps everything. The full wording is in the free trial terms (`/trial-terms`), which the firm's owner accepts when creating the firm.
+
+### What if we pay and later stop?
+**Once your firm has made its first payment, Huis never deletes its cases for non-payment.** If the subscription stops, adding new work pauses, and your Matters and information are kept, ready to open and export, until you subscribe again. If a card payment fails, Stripe retries it, and work carries on for 7 days' grace first.
+
+### Do clients, co-counsel and experts need a paid seat?
+No. Seats are for attorneys and firm staff. People outside the firm you add to a Matter don't take one.
+
+### Where can I see our plan and usage?
+Owners, managing partners, administrators and billing administrators have a **Subscription** page: the plan, trial days left or renewal date, and how many seats, Matters, how much storage and how many AI questions this month are in use. They subscribe and manage billing there too.
+
+### Why can't I upload a large file, or open a second Matter, on the trial?
+The trial includes 1 Matter, 2 GB of evidence and 100 AI questions for the whole trial, so nobody can load a whole discovery set for free. A file that wouldn't fit is refused before it's sent. Subscribing removes these limits.
+
+### Can we keep time and send invoices in Huis?
+Yes. Record time and expenses on each Matter's **Billing** page; time is billed in tenths of an hour at the rate in force that day. Billing staff or the Matter's lead attorney turn unbilled work into a draft invoice, check it, and issue it; the client then sees it on their portal. Issued invoices never change: to correct one, void it and issue a new one.
+
+### Can clients pay invoices online through Huis?
+Not yet. Record payments you receive (check, card, transfer…) against the invoice, and Huis keeps the balance. Online payment needs a legal payment processor, so client funds are handled properly (including trust/IOLTA rules); that's still to be chosen.
+
+### Can timekeepers see or change billing rates?
+They see only their own rate and can't change it, or the rate on their time. Billing staff (owners, managing partners, administrators and billing administrators) set rates.
+
+### Can Huis help me go through bank statements?
+Yes. **Financial analysis** on a Matter reads the bank statements, ledgers and spreadsheet exports filed in it: every transaction, totals by month, and what may be worth a look (balances that don't add up, possible duplicates, round or unusually large amounts, cash, transfers, gaps in dates), each with the rule that raised it and the exact line it came from. It's fixed rules, not AI, and Huis decides nothing: check every figure against the document. Clients never see it.
+

@@ -55,6 +55,15 @@ const googlePickerHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
 ];
 
+/**
+ * API responses (files, JSON, redirects) never need to run anything: the strictest policy, so a file Huis serves
+ * can't run script even if its type or nosniff were ever wrong (security review 33). The routes' own policies
+ * were being replaced by the page policy above.
+ */
+const apiHeaders = [
+  { key: "Content-Security-Policy", value: "default-src 'none'; sandbox; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" },
+];
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["pg"],
@@ -63,6 +72,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/:path*", headers: securityHeaders },
       { source: "/integrations/:id/pick", headers: googlePickerHeaders },
+      { source: "/api/:path*", headers: apiHeaders },
     ];
   },
 };

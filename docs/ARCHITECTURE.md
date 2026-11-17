@@ -67,8 +67,8 @@ MFA and passkeys; SSO/SAML for enterprise; RBAC down to firm → location → ma
 | 31 | Integrations | All on the list (order adjusted in §5) |
 | 32 | StrongSuit | StrongSuit supports an **API connection and a user-interface merger** with Huis. Plan for a two-way integration through an adapter (Phase 7 research, Phase 9 Integration Hub), with the merged interface in scope; Huis still works without it (never a dependency) |
 | 33 | StrongSuit contact | Tracy is holding discussions with StrongSuit about the API connection and interface merger |
-| 34–36 | Pricing | Combination model; **$237/user/month**; enterprise pricing for firms; **7-day free trial** (limited: 1 attorney, 3 matters, 5 GB, capped AI) |
-| 37–38 | Data ownership | Firm owns its data; full export any time |
+| 34–36 | Pricing | Combination model; **$237/user/month** or **$2,370/user/year** (two months free); enterprise pricing for firms; **7-day free trial, no card** (11 Nov 2026: **1 seat, 1 Matter**, 2 GB, **100 AI questions for the whole trial**; automatic work never counts); self-serve: explainer video → trial → subscribe, no demo calls; payment through **Stripe** (10 Nov 2026) |
+| 37–38 | Data ownership | Firm owns its data; full export any time. A **trial that ends unpaid**: read and export only for 30 days, then deleted. A firm that **has paid is never deleted** for non-payment: its Matters are held, read and export only, until it subscribes again (11 Nov 2026; terms of service and privacy policy to say so) |
 | — | Case DNA™ | Yes: relationship graph of people, events, evidence, claims, elements, law, damages |
 | — | Phase 11 | Yes: Case Outcome Intelligence™ premium add-on |
 
@@ -142,6 +142,10 @@ Next.js + React + TypeScript + Tailwind; TypeScript backend (Python services onl
 | O-8 | Trademark search for "Huis Law IP," Case DNA™, Case Gaps™, What-If Analysis™ | Tracy |
 | O-9 | Launch targets: demo date, first paying firm | Tracy |
 | O-10 | Trust/IOLTA money: integrate a legal payment processor rather than holding client funds | Build team |
+| O-11 | ~~Payment processor for Huis subscriptions~~ **Settled 10 Nov 2026: Stripe** (Phase 10 part 2a). Still open: the Stripe account and its settings (PHASE-10, "Before it can be used"), and sales tax (Stripe Tax?) | Tracy |
+| O-12 | Attorney review of the free trial terms (`src/billing/trialTerms.ts`, accepted at sign-up since review 39), plus the terms of service and privacy policy, before launch | Tracy + O-5 advisor |
+| O-13 | Hosting-time security (review 39): web application firewall and per-IP rate limits (sign-in, callbacks, invitations, onboarding, waitlist, uploads); request body-size limit at the proxy; database, ClamAV and storage on a private network; TLS 1.2+ and HSTS preload; storage master key and session secret in a key vault with rotation; encrypted backups with tested restores and a retention period consistent with the trial terms (deleted trial data is never restored); `HUIS_ALLOW_UNSANDBOXED_EXTRACTION` / `HUIS_EXTRACT_SANDBOX=none` never set in production; MFA for Huis staff; crash and out-of-memory alerts | Build team (with O-2) |
+| O-14 | Website accuracy before it goes live: the "Start Your 7-Day Free Trial" buttons only join the waitlist and the explainer video isn't made yet; point them at sign-up (app.huislaw.ai/signup) once the app is hosted | Tracy |
 
 ---
 
@@ -156,7 +160,7 @@ Next.js + React + TypeScript + Tailwind; TypeScript backend (Python services onl
 - Microsoft Graph Outlook change notifications: https://learn.microsoft.com/da-dk/Graph/outlook-change-notifications-overview
 - Dropbox app setup and approval: https://docs.unified.to/skills/dropbox-oauth-app/SKILL.md
 - Utah Courts attorney resources: https://www.utcourts.gov/en/court-records-publications/resources/other-resources/attorney.html
-- Utah XChange: https://utcourts.gov/xchange/ · https://www.utcourts.gov/xchange/help/
+- Utah XChange: https://utcourts.gov/xchange/ · https://www.utcourts.gov/en/court-records-publications/records/xchange/faq.html
 - Utah eFiling: https://www.utcourts.gov/en/self-help/legal-help/procedures/filing/efiling/district.html
 - Utah eFiling FAQ: https://www.utcourts.gov/content/dam/howto/filing/efiling/district/docs/eFiling_FAQ-Attorneys.pdf
 - District of Utah ECF manual: https://www.utd.uscourts.gov/sites/utd/files/ECF%20Procedures%20Manual%20FINAL%20250314_1.pdf

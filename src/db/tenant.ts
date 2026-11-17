@@ -1,6 +1,6 @@
 import { isIP } from "node:net";
 import pg from "pg";
-import { PermissionDeniedError, UnauthenticatedError } from "../errors";
+import { PermissionDeniedError, SignInRuleError, UnauthenticatedError, UserFacingError } from "../errors";
 import type { Role } from "../security/permissions";
 
 /** Who is making this request, as established by the sign-in layer. */
@@ -11,6 +11,8 @@ export interface RequestContext {
   userAgent?: string;
   /** From the session cookie; must match the user's current session version. */
   sessionVersion?: number;
+  /** Only for signing out: ending your own sessions works even when the firm's sign-in rule refuses this account. */
+  skipSignInRule?: boolean;
 }
 
 /** The verified, active user behind a request (loaded from the database). */
@@ -64,10 +66,14 @@ export class HuisDb {
         [ctx.userId],
       );
       const row = rows[0];
-      if (!row || row.status !== "active" || row.firm_id !== ctx.firmId
-          || (ctx.sessionVersion !== undefined && ctx.sessionVersion !== row.session_version)) {
-        throw new UnauthenticatedError();
+      if (!row || row.status !== "active" || row.firm_id !== ctx.firmId) throw new UnauthenticatedError();
+      // The firm's sign-in rule, on every request: turning it on ends other sign-ins at once. Checked before the
+      // session version (which turning the rule on also moves) so the person is told why.
+      if (!ctx.skipSignInRule) {
+        const rule = await client.query<{ ok: boolean }>("SELECT huis.session_signin_allowed() AS ok");
+        if (rule.rows[0]?.ok !== true) throw new SignInRuleError();
       }
+      if (ctx.sessionVersion !== undefined && ctx.sessionVersion !== row.session_version) throw new UnauthenticatedError();
       const actor: Actor = {
         userId: row.id, firmId: row.firm_id, role: row.role, fullName: row.full_name, sessionVersion: row.session_version,
       };
@@ -108,6 +114,14 @@ export class HuisDb {
 export function translatePgError(err: unknown): unknown {
   if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "42501") {
     return new PermissionDeniedError("perform this action");
+  }
+  // The firm's sign-in rule (HU403): the database wrote these messages for the person using Huis.
+  if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "HU403" && err instanceof Error) {
+    return new UserFacingError(err.message.slice(0, 300), 403);
+  }
+  // Subscription limits (Phase 10): the database wrote these messages for the person using Huis.
+  if (err && typeof err === "object" && "code" in err && (err as { code?: string }).code === "HU402" && err instanceof Error) {
+    return new UserFacingError(err.message.slice(0, 300), 402);
   }
   return err;
 }

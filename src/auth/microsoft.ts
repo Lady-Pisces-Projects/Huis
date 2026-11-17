@@ -99,6 +99,7 @@ export async function verifyMicrosoftIdToken(
     issuer: `https://login.microsoftonline.com/${tid}/v2.0`,
     algorithms: ["RS256"],
     clockTolerance: 60,
+    requiredClaims: ["exp", "iat"],
   });
   if (payload.tid !== tid) throw new Error("Sign-in token tenant mismatch.");
   if (payload.nonce !== opts.nonce) throw new Error("Sign-in token nonce mismatch.");
