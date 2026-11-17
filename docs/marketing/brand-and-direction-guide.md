@@ -1,6 +1,6 @@
 # Huis Law — Brand Palette & Direction Guide
 
-Status: confirmed direction (November 2026). Funnel updated 10 November 2026: self-serve, video-led, 7-day free trial (replaces the demo-request / pilot funnel).
+Status: confirmed direction (November 2026). Funnel updated 10 November 2026: self-serve, video-led, 7-day free trial (replaces the demo-request / pilot funnel). Trial and subscription details updated 11 November 2026.
 
 ## Brand hierarchy
 
@@ -58,13 +58,15 @@ Goal: sell **monthly or yearly subscriptions**. No demo calls; the explainer vid
 Traffic (LinkedIn / Google / attorney outreach / conferences / referrals)
 → Landing page with the **product explainer video** up top
 → CTA: **Start Your 7-Day Free Trial**
-→ Short sign-up (name, firm, email, practice area, number of attorneys)
+→ Short sign-up (name, firm, email, practice area, number of attorneys); no card needed
 → In-app onboarding: connect Outlook or Gmail, upload one case, see the Matter Brain work (a sample matter with made-up data is ready for anyone who wants to look before using real files)
 → Trial reminder emails (day 1, 3, 5, 6, 7)
-→ Choose **Monthly** or **Yearly** (yearly at a discount)
+→ Choose **Monthly** or **Yearly** (yearly = 2 months free), paid through Stripe
 → Premium upgrade later: Case Outcome Intelligence
 
-Pricing: $237/user/month; yearly price to be set; enterprise pricing for larger firms.
+Pricing: $237/user/month; yearly = 2 months free (10 × $237 = $2,370/user/year); enterprise pricing for larger firms.
+
+Trial: 7 days, no card, 1 seat, 1 Matter, 2 GB storage and 100 AI questions. When a trial ends unpaid, files stay read-only and exportable for 30 days, then are deleted. Firms that pay and subscribe are never deleted: their cases and information are held. (To be stated in the terms of service and privacy policy.)
 
 Trust work the video and page must carry, since no salesperson is in the loop: a security and privilege section (encryption, ethical walls, audit trail, no training on client data), a link to the FAQ, and the AI disclaimer.
 
