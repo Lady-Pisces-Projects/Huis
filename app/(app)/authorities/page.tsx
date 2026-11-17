@@ -55,7 +55,7 @@ export default async function AuthoritiesPage({ searchParams }: { searchParams: 
             <summary>
               <span className="badge">{KIND_LABELS[a.kind]}</span> <strong>{a.citation}</strong>{a.title ? ` · ${a.title}` : ""}{" "}
               {a.verified ? <span className="badge">Verified</span> : <span className="badge walled">Unverified</span>}
-              {a.official ? <> <span className="badge">Official source</span></> : null}
+              {a.official ? <> <span className="badge">Recognized free source</span></> : null}
               <span className="notice"> · cited in {a.citedIn} {a.citedIn === 1 ? "place" : "places"}</span>
             </summary>
             <p className="notice">
@@ -97,7 +97,7 @@ export default async function AuthoritiesPage({ searchParams }: { searchParams: 
           <form action={addAuthorityAction}>
             <Fields />
             <div style={{ marginTop: 8 }}><button type="submit">Add</button></div>
-            <p className="notice">Official sources (for example CourtListener, Cornell LII, GovInfo, the U.S. Code, eCFR, federal and Utah courts) get a badge; other links (such as Westlaw or Lexis) are accepted too.</p>
+            <p className="notice">Links to recognized free sources (for example CourtListener, Cornell LII, GovInfo, the U.S. Code, eCFR, federal and Utah courts) get a badge. The badge means the link is to a known public source, not that the text is an official or citable edition: CourtListener, Cornell LII and eCFR are unofficial compilations. Other links (such as Westlaw or Lexis) are accepted too.</p>
           </form>
         </div>
       ) : null}

@@ -34,6 +34,7 @@ import {
 } from "../src/services/billing";
 import { ROLES } from "../src/security/permissions";
 import { SignInRuleError, UserFacingError } from "../src/errors";
+import { TRIAL_TERMS_VERSION } from "../src/billing/trialTerms";
 import { setSignInRule } from "../src/services/signinRule";
 import { MAX_LOGO_BYTES, setBranding, setLogo } from "../src/services/branding";
 import { reviewGap } from "../src/services/caseStrength";
@@ -58,6 +59,7 @@ export async function createFirmAction(fd: FormData): Promise<void> {
   const pending = await getPending();
   if (!pending) redirect("/signin?reason=expired");
   return act("/onboarding", "Your firm is ready.", async () => {
+    if (text(fd, "acceptTrialTerms") !== "yes") throw new UserFacingError("Please read and accept the free trial terms to create your firm.");
     const firmName = z.string().trim().min(2).max(200).parse(text(fd, "firmName"));
     const base = firmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50) || "firm";
     const res = await signUpFirm(db(), {
@@ -69,6 +71,7 @@ export async function createFirmAction(fd: FormData): Promise<void> {
       ownerName: text(fd, "ownerName") ?? pending.name,
       authProvider: pending.provider as "microsoft" | "google",
       authSubject: pending.subject,
+      trialTermsVersion: TRIAL_TERMS_VERSION,
     });
     await setSessionCookie({ firmId: res.firmId, userId: res.ownerUserId, provider: pending.provider, subject: pending.subject });
     return { redirectTo: "/dashboard" };

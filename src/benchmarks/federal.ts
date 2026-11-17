@@ -25,7 +25,7 @@ export const NOS_RULES: { nos: number; title: string; match: RegExp }[] = [
   { nos: 791, title: "Employee Retirement Income Security Act", match: /\berisa\b/i },
   { nos: 751, title: "Family and Medical Leave Act", match: /\bfmla\b|family and medical leave/i },
   // "ADA" only as the capitalised acronym, so the name Ada (Ada County) doesn't match.
-  { nos: 445, title: "Americans With Disabilities – Employment", match: /\bADA\b|americans with disabilities|disability discriminat|failure to accommodate/ },
+  { nos: 445, title: "Americans With Disabilities – Employment", match: /\bADA\b|\b[Aa]mericans [Ww]ith [Dd]isabilities|\b[Dd]isability [Dd]iscriminat|\b[Ff]ailure [Tt]o [Aa]ccommodate|AMERICANS WITH DISABILITIES|DISABILITY DISCRIMINAT|FAILURE TO ACCOMMODATE/ },
   { nos: 710, title: "Fair Labor Standards Act (Non-Union)", match: /\bflsa\b|fair labor standards|overtime|minimum wage|unpaid wages?/i },
   { nos: 442, title: "Civil Rights – Employment", match: /title vii|\badea\b|age discrimination|discriminat|retaliat|harass|hostile work/i },
   { nos: 190, title: "Other Contract", match: /contract/i },

@@ -1,6 +1,6 @@
 import { Readable } from "node:stream";
 import type { NextRequest } from "next/server";
-import { api } from "../../../../../lib/api";
+import { api, readForm } from "../../../../../lib/api";
 import { NextResponse } from "next/server";
 import { authConfig } from "../../../../../src/auth/config";
 import { db, getSession, setFlash } from "../../../../../lib/server";
@@ -17,9 +17,10 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let plan: ExportPlan | null = null;
-  const form = await req.formData().catch(() => null);
-  const acknowledged = form?.get("acknowledge") === "on";
   const res = await api(req, async (s) => {
+    // Read only after the origin and session checks; the form is one checkbox.
+    const form = await readForm(req, 4 * 1024);
+    const acknowledged = form?.get("acknowledge") === "on";
     plan = await prepareMatterExport(s, id, acknowledged);
     return new Response(null, { status: 204 });
   });

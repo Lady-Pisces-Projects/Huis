@@ -13,6 +13,8 @@ export const SignUpFirmInput = z.object({
   ownerName: z.string().trim().min(1).max(200),
   authProvider: z.enum(["microsoft", "google"]),
   authSubject: z.string().min(1).max(512),
+  /** The version of the free trial terms the owner accepted (src/billing/trialTerms.ts); recorded with the firm. */
+  trialTermsVersion: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 export type SignUpFirmInput = z.input<typeof SignUpFirmInput>;
 
@@ -45,6 +47,9 @@ export async function signUpFirm(db: HuisDb, input: SignUpFirmInput): Promise<Si
     );
     const row = rows[0];
     if (!row) throw new Error("Firm sign-up failed");
+    if (v.trialTermsVersion) {
+      await client.query("SELECT huis.record_trial_terms($1, $2, $3)", [row.firm_id, row.owner_user_id, v.trialTermsVersion]);
+    }
     return { firmId: row.firm_id, locationId: row.location_id, ownerUserId: row.owner_user_id };
   });
 }

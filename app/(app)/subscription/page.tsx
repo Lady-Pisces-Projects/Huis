@@ -114,8 +114,10 @@ export default async function SubscriptionPage({ searchParams }: { searchParams:
       <div className="card">
         <h2>If the trial ends, or the subscription stops</h2>
         <p className="notice">
-          <strong>If the free trial ends before a first payment</strong> (including if you subscribed during the trial but cancelled, or the first charge failed): adding new work pauses, and for 30 days everyone can still sign in, open
-          and export everything. After those 30 days the firm&apos;s files and data are permanently deleted.
+          <strong>If the free trial ends before a first payment</strong> (including if you subscribed during the trial but cancelled, or the first charge failed): adding new work pauses, and for at least 30 days everyone can still sign in, open
+          and export everything. The firm&apos;s owners are emailed 14 days, 7 days and 1 day before the deletion date; on that date the firm&apos;s
+          account, files and data are permanently deleted and can&apos;t be restored. The firm is responsible for exporting anything it needs
+          to keep. See the <Link href="/trial-terms">free trial terms</Link>.
         </p>
         <p className="notice">
           <strong>Once your firm has made its first payment, Huis never deletes its cases for non-payment.</strong> If the subscription stops, adding new work

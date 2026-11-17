@@ -1,4 +1,5 @@
 import type pg from "pg";
+import { TRIAL_TERMS_EMAIL } from "./trialTerms";
 
 /**
  * Phase 10 part 2b: deleting an unpaid trial's data (db/migrations/0041_trial_deletion.sql).
@@ -52,6 +53,9 @@ export function deletionNotice(n: Pick<ClaimedNotice, "email" | "firm_name" | "d
       "To keep a copy without subscribing, sign in and export each Matter before that date.",
       "",
       "Firms that have subscribed are never deleted for non-payment. If you think this is a mistake, reply to this email.",
+      "",
+      TRIAL_TERMS_EMAIL,
+      `Free trial terms: ${baseUrl.replace(/\/$/, "")}/trial-terms`,
     ].join("\n"),
   };
 }

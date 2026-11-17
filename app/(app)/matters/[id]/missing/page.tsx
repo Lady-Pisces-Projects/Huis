@@ -41,7 +41,7 @@ export default async function MissingPage({ params }: { params: Promise<{ id: st
 
       <div className="card"><h2>Documents to request</h2><Drafts list={d.documents} empty="Every claim element already has two or more documents or emails behind it." /></div>
       <div className="card"><h2>Requests for admission (drafts)</h2><Drafts list={d.admissions} empty="No confirmed fact has a document behind it yet." />
-        {d.admissionsTruncated ? <p className="muted">Only the first 30 are drafted. Serve them in sets your court's limits allow.</p> : null}
+        <p className="muted">Check your court&apos;s limits before serving. The federal rules set no number limit on requests for admission, but Utah R. Civ. P. 26(c)(5) limits them by tier (5, 10 or 20 per side; 10 in domestic cases), and many courts and local rules set their own.{d.admissionsTruncated ? " Only the first 30 are drafted here." : ""}</p>
         {d.questionFacts ? <p className="muted">{d.questionFacts} fact{d.questionFacts === 1 ? " is" : "s are"} worded as a question, so no admission was drafted. Reword {d.questionFacts === 1 ? "it" : "them"} as a statement in Case DNA.</p> : null}</div>
       <div className="card">
         <h2>Deposition targets</h2>
