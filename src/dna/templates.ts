@@ -9,7 +9,7 @@ export interface ClaimTemplate { key: string; title: string; kind: "claim" | "de
 export const CLAIM_TEMPLATES: ClaimTemplate[] = [
   {
     key: "fmla_retaliation", kind: "claim", title: "FMLA retaliation",
-    source: "29 U.S.C. § 2615(a)(2); e.g. Metzler v. Fed. Home Loan Bank of Topeka, 464 F.3d 1164 (10th Cir. 2006)",
+    source: "29 U.S.C. § 2615(a)(2); 29 C.F.R. § 825.220(c); e.g. Metzler v. Fed. Home Loan Bank of Topeka, 464 F.3d 1164 (10th Cir. 2006) (elements as stated in the Tenth Circuit; other circuits word them differently)",
     elements: [
       { label: "Protected activity", details: "The employee engaged in activity protected by the FMLA (for example, requested or took FMLA leave)." },
       { label: "Adverse action", details: "The employer took an action that a reasonable employee would have found materially adverse." },
@@ -18,7 +18,7 @@ export const CLAIM_TEMPLATES: ClaimTemplate[] = [
   },
   {
     key: "fmla_interference", kind: "claim", title: "FMLA interference",
-    source: "29 U.S.C. § 2615(a)(1); e.g. Metzler v. Fed. Home Loan Bank of Topeka, 464 F.3d 1164 (10th Cir. 2006)",
+    source: "29 U.S.C. § 2615(a)(1); e.g. Metzler v. Fed. Home Loan Bank of Topeka, 464 F.3d 1164 (10th Cir. 2006) (elements as stated in the Tenth Circuit; other circuits word them differently)",
     elements: [
       { label: "Entitled to FMLA leave", details: "The employee was entitled to FMLA leave (eligible employee, covered employer, qualifying reason, notice)." },
       { label: "Interference", details: "An action by the employer interfered with the employee's right to take FMLA leave or to be restored afterwards." },

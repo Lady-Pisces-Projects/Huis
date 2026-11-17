@@ -47,7 +47,7 @@ export async function SignInPanel({ reason, mode }: { reason?: string; mode: "si
       <div className="panel">
         <h1>{mode === "signup" ? "Start your 7-day free trial" : "Huis Law"}</h1>
         <p className="sub">{mode === "signup"
-          ? "No card needed. Sign in with your work account to create your firm; you'll name it on the next screen."
+          ? <>No card needed. Sign in with your work account to create your firm; you&apos;ll name it on the next screen. A firm that doesn&apos;t subscribe is deleted after the trial, as set out in the <Link href="/trial-terms">free trial terms</Link>.</>
           : "Your case has a story. Huis helps you see it."}</p>
         {reason && REASONS[reason] ? <div className={`flash ${reason === "signedout" ? "success" : "error"}`}>{REASONS[reason]}</div> : null}
         {signedIn ? <div className="flash success">You&apos;re already signed in. <Link href="/dashboard">Go to your dashboard</Link></div> : null}

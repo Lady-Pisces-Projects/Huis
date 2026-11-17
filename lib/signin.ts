@@ -8,6 +8,7 @@ import { staffMember } from "../src/admin/staff";
 import { postFromHuis, signInReturnMatches } from "../src/auth/signin-check";
 import { acceptInvitation, signInAccounts } from "../src/services/firms";
 import { UserFacingError } from "../src/errors";
+import { readForm } from "./api";
 import { db, setPendingCookie, setSessionCookie } from "./server";
 
 /**
@@ -54,7 +55,8 @@ export async function startSignInFromInvite(req: NextRequest, provider: SignInPr
   if (!postFromHuis(req.headers.get("origin"), req.headers.get("sec-fetch-site"), cfg.baseUrl)) {
     return new NextResponse("Open your invitation link and use the button on that page.", { status: 403 });
   }
-  const form = await req.formData().catch(() => null);
+  // The form holds one token; stop reading at 4 KB (the Origin check above can be forged by a script).
+  const form = await readForm(req, 4 * 1024).catch(() => null);
   const invite = form?.get("invite");
   if (typeof invite !== "string" || !INVITE_TOKEN.test(invite)) return NextResponse.redirect(new URL("/signin?reason=invite", cfg.baseUrl), 303);
   return startSignIn(provider, authorizeUrl, invite);

@@ -7,10 +7,10 @@ Plain-language answers for attorneys, firm administrators and staff. Updated as 
 ## Safety, security and attorney–client privilege
 
 ### Is attorney–client privilege protected?
-Yes. Protecting privilege is Huis's first rule. Every matter has a red **Privileged & Confidential** folder that can never be switched off or reclassified. People outside the firm (clients, co-counsel, expert witnesses, other authorized third parties) can never see it, search it, or see the names of what's inside it. This is enforced by the database itself, not just by the screens, so a bug in the app can't expose it.
+Huis protects the confidentiality of privileged material; whether a communication is privileged is a legal question for the firm. Protecting privilege is Huis's first rule. Every matter has a red **Privileged & Confidential** folder that can never be switched off or reclassified. People outside the firm (clients, co-counsel, expert witnesses, other authorized third parties) can never see it, search it, or see the names of what's inside it. This is enforced by the database itself, not just by the screens, so a bug in the app can't expose it.
 
 ### What happens if someone moves privileged material somewhere a client can see?
-Huis stops and warns them that this may waive privilege. They must explicitly acknowledge the risk before the move happens, and the acknowledgement is permanently recorded in the item's chain of custody.
+Huis stops and warns them that sharing with anyone other than the client may waive privilege or work-product protection. They must explicitly acknowledge the risk before the move happens, and the acknowledgement is permanently recorded in the item's chain of custody.
 
 ### If an email has a privileged attachment, can it leak through the email?
 No. Attachments filed separately (for example, into the red folder) stay where they were put, even if the email is later moved. A client can't discover a privileged attachment's name by searching the email it came from either.

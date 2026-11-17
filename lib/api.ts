@@ -64,8 +64,10 @@ export function apiErrorResponse(err: unknown): Response {
   return NextResponse.json({ error: message }, { status, headers: { "cache-control": "no-store" } });
 }
 
-/** Reads a request body with a hard size limit. */
+/** Reads a request body with a hard size limit (whether or not it sends a Content-Length). */
 export async function readBody(req: NextRequest, maxBytes: number): Promise<Buffer> {
+  const declared = Number(req.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declared) && declared > maxBytes) throw new ApiError(413, "Request too large.");
   if (!req.body) return Buffer.alloc(0);
   const parts: Buffer[] = [];
   let total = 0;
@@ -76,9 +78,23 @@ export async function readBody(req: NextRequest, maxBytes: number): Promise<Buff
     total += value.byteLength;
     if (total > maxBytes) {
       await reader.cancel();
-      throw new ApiError(413, "Chunk too large.");
+      throw new ApiError(413, "Request too large.");
     }
     parts.push(Buffer.from(value));
   }
   return Buffer.concat(parts);
+}
+
+/** A small JSON body, size-limited; null when it isn't valid JSON. */
+export async function readJson(req: NextRequest, maxBytes: number): Promise<unknown> {
+  const buf = await readBody(req, maxBytes);
+  try { return JSON.parse(buf.toString("utf8")); } catch { return null; }
+}
+
+/** A small HTML form post, size-limited; null when it can't be parsed. */
+export async function readForm(req: NextRequest, maxBytes: number): Promise<FormData | null> {
+  const buf = await readBody(req, maxBytes);
+  const type = req.headers.get("content-type") ?? "";
+  return new Request("http://huis.invalid/", { method: "POST", headers: { "content-type": type }, body: new Uint8Array(buf) })
+    .formData().catch(() => null);
 }

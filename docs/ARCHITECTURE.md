@@ -143,27 +143,6 @@ Next.js + React + TypeScript + Tailwind; TypeScript backend (Python services onl
 | O-9 | Launch targets: demo date, first paying firm | Tracy |
 | O-10 | Trust/IOLTA money: integrate a legal payment processor rather than holding client funds | Build team |
 | O-11 | ~~Payment processor for Huis subscriptions~~ **Settled 10 Nov 2026: Stripe** (Phase 10 part 2a). Still open: the Stripe account and its settings (PHASE-10, "Before it can be used"), and sales tax (Stripe Tax?) | Tracy |
-
----
-
-## 9. Sources
-
-- Filevine reviews: https://www.softwareadvice.com/enterprise-legal-management/filevine-profile/
-- Filevine API (via Unified): https://docs.unified.to/integrations/filevine.md
-- StrongSuit integrations FAQ: https://strongsuit.com/faq/integration-workflow/
-- StrongSuit 2.0: https://pr.davisjournal.com/article/StrongSuit-20-Reimagines-the-Litigation-Workflow-with-a-Fully-Connected-AI-Platform/6a4fbe13ba2819000268044b
-- Gmail scopes and CASA: https://docs.unified.to/skills/gmail-oauth-app/SKILL.md
-- Google Drive scopes: https://developers.google.com/workspace/drive/api/guides/api-specific-auth
-- Microsoft Graph Outlook change notifications: https://learn.microsoft.com/da-dk/Graph/outlook-change-notifications-overview
-- Dropbox app setup and approval: https://docs.unified.to/skills/dropbox-oauth-app/SKILL.md
-- Utah Courts attorney resources: https://www.utcourts.gov/en/court-records-publications/resources/other-resources/attorney.html
-- Utah XChange: https://utcourts.gov/xchange/ · https://www.utcourts.gov/xchange/help/
-- Utah eFiling: https://www.utcourts.gov/en/self-help/legal-help/procedures/filing/efiling/district.html
-- Utah eFiling FAQ: https://www.utcourts.gov/content/dam/howto/filing/efiling/district/docs/eFiling_FAQ-Attorneys.pdf
-- District of Utah ECF manual: https://www.utd.uscourts.gov/sites/utd/files/ECF%20Procedures%20Manual%20FINAL%20250314_1.pdf
-- ECF notification emails: https://parseur.com/blog/ecf-emails
-- CourtListener API: https://www.vaquill.ai/blog/how-to-use-courtlistener-api-2026
-- Docket Alarm API: https://www.docketalarm.com/api/v1/
-- UniCourt docket tracking: https://www.businesswire.com/news/home/20250307362939/en/UniCourt-Launches-New-Docket-Tracking-Feature
-- Trellis API: https://www.vaquill.ai/blog/trellis-api-state-court-data-what-it-offers
-- LawPay API notes: https://supergood.ai/docs/lawpay-api
+| O-12 | Attorney review of the free trial terms (`src/billing/trialTerms.ts`, accepted at sign-up since review 39), plus the terms of service and privacy policy, before launch | Tracy + O-5 advisor |
+| O-13 | Hosting-time security (review 39): web application firewall and per-IP rate limits (sign-in, callbacks, invitations, onboarding, waitlist, uploads); request body-size limit at the proxy; database, ClamAV and storage on a private network; TLS 1.2+ and HSTS preload; storage master key and session secret in a key vault with rotation; encrypted backups with tested restores and a retention period consistent with the trial terms (deleted trial data is never restored); `HUIS_ALLOW_UNSANDBOXED_EXTRACTION` / `HUIS_EXTRACT_SANDBOX=none` never set in production; MFA for Huis staff; crash and out-of-memory alerts | Build team (with O-2) |
+| O-14 | Website accuracy before it goes live: the "Start Your 7-Day Free Trial" buttons only join the waitlist and the explainer video isn't made yet; point them at sign-up (app.huislaw.ai/signup) once the app is hosted | Tracy |
